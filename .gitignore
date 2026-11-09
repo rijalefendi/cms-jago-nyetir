@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+.env.local
+.go-cache/
+.gocache/
+.gomodcache/
+.npm-cache/
+be-jago-nyetir/
