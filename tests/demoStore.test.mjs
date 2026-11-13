@@ -1,6 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createDemoStore } from '../src/demoStore.mjs';
+import { seed } from '../src/seed.mjs';
+
+test('older demo records gain packages without losing students or their session allowance', () => {
+  const old = seed();
+  delete old.packages;
+  old.students.forEach(student => { delete student.packageId; });
+  old.students[0].total = 9;
+  const store = createDemoStore({ getItem: () => JSON.stringify(old) });
+  const data = store.load('school', seed);
+  assert.equal(data.packages.length, 3);
+  assert.equal(data.students[0].packageId, 'P2');
+  assert.equal(data.students[0].total, 9);
+  assert.deepEqual(data.sessions, old.sessions);
+});
 
 test('demo records remain separate by school', async () => {
   const values = new Map();

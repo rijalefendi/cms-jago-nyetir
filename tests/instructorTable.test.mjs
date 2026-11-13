@@ -20,3 +20,26 @@ test('sorting and page count use filtered rows and clamp stale page', () => {
   assert.equal(result.total, 3);
   assert.equal(result.pageCount, 2);
 });
+
+const cars = [
+  { id: 'C1', name: 'Unit Matic 01', transmission: 'Matic', active: true },
+  { id: 'C2', name: 'Unit Manual 01', transmission: 'Manual', active: true },
+  { id: 'C3', name: 'Unit Matic 02', transmission: 'Matic', active: false },
+];
+
+test('resource table helper works on vehicle rows for search, sort, and status', () => {
+  assert.deepEqual(instructorTablePage(cars, { query: 'manual' }).items.map(x => x.id), ['C2']);
+  assert.deepEqual(instructorTablePage(cars, { sort: 'status', direction: 'asc' }).items.map(x => x.active), [true, true, false]);
+  assert.equal(instructorTablePage(cars, { sort: 'name', direction: 'desc' }).items[0].id, 'C3');
+});
+
+test('packages search descriptions and sort session counts numerically', () => {
+  const packages = [
+    { id: 'P1', name: 'A', description: '- Parkir\n1. Tanjakan', total_sessions: 12 },
+    { id: 'P2', name: 'B', description: '', total_sessions: 4 },
+    { id: 'P3', name: 'C', description: '', total_sessions: 8 },
+  ];
+  assert.deepEqual(instructorTablePage(packages, { query: 'TANJAKAN' }).items.map(p => p.id), ['P1']);
+  assert.deepEqual(instructorTablePage(packages, { sort: 'total_sessions' }).items.map(p => p.total_sessions), [4, 8, 12]);
+  assert.deepEqual(instructorTablePage(packages, { sort: 'total_sessions', direction: 'desc' }).items.map(p => p.total_sessions), [12, 8, 4]);
+});

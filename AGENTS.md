@@ -1,6 +1,6 @@
 # Frontend agent instructions
 
-These instructions apply to the frontend in this workspace: `src/`, `public/`, `dashboard.html`, `index.html`, `design.md`, and frontend tests in `tests/`. The backend lives in the separate `be-jago-nyetir` repository.
+These instructions apply to the frontend in this workspace: `src/`, `public/`, `index.html`, `design.md`, and frontend tests in `tests/`. The backend lives in the separate `be-jago-nyetir` repository.
 
 ## Work efficiently
 

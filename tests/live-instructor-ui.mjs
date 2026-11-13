@@ -1,10 +1,7 @@
 import assert from 'node:assert/strict';
-import { buildSync } from 'esbuild';
-import { JSDOM } from 'jsdom';
+import { fixture, session, school } from './auth-fixture.mjs';
 
-const bundle = buildSync({ entryPoints: ['src/main.tsx'], bundle: true, outfile: 'qa-live.js', write: false, loader: { '.html': 'text' }, format: 'iife', platform: 'browser', define: { 'import.meta.env.VITE_SUPABASE_URL': '"http://supabase"', 'import.meta.env.VITE_SUPABASE_ANON_KEY': '"anon"' } });
-const dom = new JSDOM('<!doctype html><div id="root"></div>', { url: 'http://localhost/', runScripts: 'dangerously', pretendToBeVisual: true });
-dom.window.sessionStorage.setItem('school-token', 'token');
+const { dom } = fixture({ initial: session() });
 const instructors = [
   { id: 'a', name: 'Alya', transmission: 'Matic', notes: 'Pagi', active: true },
   { id: 'b', name: 'Bima', transmission: 'Manual', notes: 'Sore', active: false },
@@ -14,8 +11,10 @@ let rejectDelete = false;
 let pauseNextList = false;
 let releaseList;
 let failNextList = false;
+let rejectSave = false;
 dom.window.fetch = async (url, options = {}) => {
   calls.push([url, options.method || 'GET']);
+  if (rejectSave && options.method === 'POST') return { ok: false, status: 503, text: async () => JSON.stringify({ error: 'unavailable' }) };
   if (rejectDelete && options.method === 'DELETE') return { ok: false, text: async () => JSON.stringify({ code: '23503', message: 'foreign key violation' }) };
   const parsed = new URL(url, 'http://localhost');
   if (parsed.pathname.endsWith('/instructors') && parsed.searchParams.has('page')) {
@@ -24,13 +23,12 @@ dom.window.fetch = async (url, options = {}) => {
   }
   const search = (parsed.searchParams.get('search') || '').toLowerCase();
   const filtered = instructors.filter(row => `${row.name} ${row.notes}`.toLowerCase().includes(search));
-  const body = url.endsWith('/schools') ? [{ id: 'school', name: 'Sekolah', time_zone: 'Asia/Jakarta' }]
+  const body = url.endsWith('/schools') ? [school]
     : parsed.pathname.endsWith('/instructors') && parsed.searchParams.has('page') ? { items: filtered.slice((Number(parsed.searchParams.get('page')) - 1) * 10, Number(parsed.searchParams.get('page')) * 10), total: filtered.length, page: Number(parsed.searchParams.get('page')), pageSize: 10 }
     : parsed.pathname.endsWith('/instructors') ? instructors
     : [];
   return { ok: true, text: async () => JSON.stringify(body) };
 };
-dom.window.eval(bundle.outputFiles.find(file => file.path.endsWith('.js')).text);
 await new Promise(resolve => setTimeout(resolve, 150));
 const { document, Event, MouseEvent } = dom.window;
 assert.ok(!calls.some(([url]) => url.endsWith('/instructors')));
@@ -49,7 +47,7 @@ assert.match(document.querySelector('.instructor-table tbody').textContent, /Bim
 assert.ok(calls.some(([url]) => new URL(url, 'http://localhost').searchParams.get('search') === 'sore'));
 document.querySelector('.instructor-table [aria-label="Ubah Bima"]').click();
 await new Promise(resolve => setTimeout(resolve, 20));
-const editForm = document.querySelector('.instructor-form');
+const editForm = document.querySelector('form[data-form="save-instructor"]');
 assert.equal(editForm.querySelector('[name="notes"]').value, 'Sore');
 editForm.querySelector('[name="notes"]').value = 'Akhir pekan';
 editForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
@@ -57,7 +55,8 @@ await new Promise(resolve => setTimeout(resolve, 30));
 assert.ok(calls.some(([url, method]) => url.endsWith('/instructors/b') && method === 'PATCH'));
 document.querySelector('.instructor-table [aria-label="Hapus Bima"]').click();
 await new Promise(resolve => setTimeout(resolve, 20));
-assert.match(document.body.textContent, /Hapus instruktur Bima/);
+assert.match(document.querySelector('[role="alertdialog"]').textContent, /Hapus instruktur\?/);
+assert.match(document.querySelector('[role="alertdialog"]').textContent, /Bima/);
 document.querySelector('[data-testid="confirm-delete-instructor"]').click();
 await new Promise(resolve => setTimeout(resolve, 30));
 assert.ok(calls.some(([url, method]) => url.endsWith('/instructors/b') && method === 'DELETE'));
@@ -71,17 +70,39 @@ assert.match(document.querySelector('.instructor-action-error[role="alert"]').te
 document.querySelector('.live-instructor-heading button').click();
 await new Promise(resolve => setTimeout(resolve, 20));
 assert.ok(!document.querySelector('.instructor-action-error'));
-const addForm = document.querySelector('.instructor-form');
-assert.ok(addForm.compareDocumentPosition(document.querySelector('.instructor-table')) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING);
+const addForm = document.querySelector('form[data-form="save-instructor"]');
 assert.equal(document.activeElement, addForm.querySelector('[name="name"]'));
+const writesBefore = calls.filter(([, method]) => method === 'POST').length;
+addForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+await new Promise(resolve => setTimeout(resolve, 30));
+assert.match(document.getElementById('f-name-error').textContent, /Nama instruktur wajib diisi/);
+assert.equal(calls.filter(([, method]) => method === 'POST').length, writesBefore);
+assert.equal(document.getElementById('modalError'), null);
+rejectSave = true;
 addForm.querySelector('[name="name"]').value = 'Citra';
+addForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+await new Promise(resolve => setTimeout(resolve, 30));
+assert.match(document.getElementById('modalError').textContent, /Layanan belum dapat dihubungi/);
+assert.ok(document.getElementById('modalError').classList.contains('form-feedback'));
+assert.doesNotMatch(document.getElementById('modalError').textContent, /^Error:/);
+assert.equal(addForm.querySelector('[name="name"]').value, 'Citra');
+assert.equal(addForm.querySelector('[aria-invalid="true"]'), null, 'network errors must not blame a field');
+Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value').set.call(addForm.querySelector('[name="name"]'), 'Citra Baru');
+addForm.querySelector('[name="name"]').dispatchEvent(new Event('input', { bubbles: true }));
+await new Promise(resolve => setTimeout(resolve, 20));
+assert.equal(document.getElementById('modalError'), null);
+rejectSave = false;
 addForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
 await new Promise(resolve => setTimeout(resolve, 30));
 assert.ok(calls.some(([url, method]) => url.endsWith('/instructors') && method === 'POST'));
 for (let i = 0; i < 10; i++) instructors.push({ id: `extra-${i}`, name: `Extra ${i}`, transmission: 'Matic', notes: '', active: true });
 const searchAgain = document.getElementById('liveInstructorSearch');
-Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value').set.call(searchAgain, '');
-searchAgain.dispatchEvent(new Event('input', { bubbles: true }));
+const clearSearch = document.querySelector('[data-clear-search="liveInstructorSearch"]');
+assert.ok(clearSearch, 'live search exposes an explicit clear button');
+clearSearch.click();
+await new Promise(resolve => setTimeout(resolve, 20));
+assert.equal(searchAgain.value, '');
+assert.equal(document.activeElement, searchAgain);
 await new Promise(resolve => setTimeout(resolve, 350));
 assert.equal(document.querySelectorAll('.instructor-table tbody tr').length, 10);
 document.querySelector('[aria-label="Halaman berikutnya"]').click();
@@ -106,5 +127,15 @@ assert.match(document.querySelector('.instructor-load-error[role="alert"]').text
 document.querySelector('.instructor-load-error button').click();
 await new Promise(resolve => setTimeout(resolve, 30));
 assert.equal(document.querySelectorAll('.instructor-table tbody tr').length, 10);
+document.querySelectorAll('.live-nav button')[3].click();
+await new Promise(resolve => setTimeout(resolve, 40));
+document.querySelector('[data-action="add-car"]').click();
+await new Promise(resolve => setTimeout(resolve, 20));
+const vehicleForm = document.querySelector('form[data-form="save-car"]');
+vehicleForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+await new Promise(resolve => setTimeout(resolve, 20));
+assert.match(document.getElementById('f-name-error').textContent, /Nama mobil wajib diisi/);
+assert.equal(vehicleForm.elements.namedItem('name').getAttribute('aria-invalid'), 'true');
+assert.equal(document.getElementById('modalError'), null);
 console.log('Live instructor UI passed');
 dom.window.close();
