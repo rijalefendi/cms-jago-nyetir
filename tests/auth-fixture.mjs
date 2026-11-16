@@ -39,10 +39,12 @@ export function fixture({ initial = null, url = 'http://localhost/', fetch = asy
     onAuthStateChange: callback => { listener = callback; return { data: { subscription: { unsubscribe() {} } } }; },
     signInWithPassword: async () => ({ data: { session: null }, error: { name: 'AuthApiError', code: 'invalid_credentials', status: 400, message: 'Invalid login credentials' } }),
     signUp: async () => ({ data: { session: null }, error: null }),
+    resetPasswordForEmail: async () => ({ data: {}, error: null }),
+    updateUser: async () => ({ data: { user: current?.user }, error: null }),
     refreshSession: async () => ({ data: { session: current }, error: null }),
     signOut: async () => { emit(null); return { error: null }; },
   };
-  function emit(next) { current = next; listener?.(next ? 'SIGNED_IN' : 'SIGNED_OUT', next); }
+  function emit(next, event) { current = next; listener?.(event || (next ? 'SIGNED_IN' : 'SIGNED_OUT'), next); }
   const errors = [];
   dom.window.console.error = (...args) => { errors.push(args); };
   dom.window.__auth = auth;

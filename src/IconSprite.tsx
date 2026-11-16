@@ -1,0 +1,176 @@
+export function IconSprite() { return (
+<svg xmlns="http://www.w3.org/2000/svg" style={{position: "absolute", width: 0, height: 0, overflow: "hidden"}} aria-hidden="true">
+  <symbol id="i-layout" viewBox="0 0 24 24" data-hugeicons="DashboardSquare01Icon">
+    <path d="M13.6903 19.4567C13.5 18.9973 13.5 18.4149 13.5 17.25C13.5 16.0851 13.5 15.5027 13.6903 15.0433C13.944 14.4307 14.4307 13.944 15.0433 13.6903C15.5027 13.5 16.0851 13.5 17.25 13.5C18.4149 13.5 18.9973 13.5 19.4567 13.6903C20.0693 13.944 20.556 14.4307 20.8097 15.0433C21 15.5027 21 16.0851 21 17.25C21 18.4149 21 18.9973 20.8097 19.4567C20.556 20.0693 20.0693 20.556 19.4567 20.8097C18.9973 21 18.4149 21 17.25 21C16.0851 21 15.5027 21 15.0433 20.8097C14.4307 20.556 13.944 20.0693 13.6903 19.4567Z" stroke="currentColor" strokeLinecap="square" strokeLinejoin="round" />
+    <path d="M13.6903 8.95671C13.5 8.49728 13.5 7.91485 13.5 6.75C13.5 5.58515 13.5 5.00272 13.6903 4.54329C13.944 3.93072 14.4307 3.44404 15.0433 3.1903C15.5027 3 16.0851 3 17.25 3C18.4149 3 18.9973 3 19.4567 3.1903C20.0693 3.44404 20.556 3.93072 20.8097 4.54329C21 5.00272 21 5.58515 21 6.75C21 7.91485 21 8.49728 20.8097 8.95671C20.556 9.56928 20.0693 10.056 19.4567 10.3097C18.9973 10.5 18.4149 10.5 17.25 10.5C16.0851 10.5 15.5027 10.5 15.0433 10.3097C14.4307 10.056 13.944 9.56928 13.6903 8.95671Z" stroke="currentColor" strokeLinecap="square" strokeLinejoin="round" />
+    <path d="M3.1903 19.4567C3 18.9973 3 18.4149 3 17.25C3 16.0851 3 15.5027 3.1903 15.0433C3.44404 14.4307 3.93072 13.944 4.54329 13.6903C5.00272 13.5 5.58515 13.5 6.75 13.5C7.91485 13.5 8.49728 13.5 8.95671 13.6903C9.56928 13.944 10.056 14.4307 10.3097 15.0433C10.5 15.5027 10.5 16.0851 10.5 17.25C10.5 18.4149 10.5 18.9973 10.3097 19.4567C10.056 20.0693 9.56928 20.556 8.95671 20.8097C8.49728 21 7.91485 21 6.75 21C5.58515 21 5.00272 21 4.54329 20.8097C3.93072 20.556 3.44404 20.0693 3.1903 19.4567Z" stroke="currentColor" strokeLinecap="square" strokeLinejoin="round" />
+    <path d="M3.1903 8.95671C3 8.49728 3 7.91485 3 6.75C3 5.58515 3 5.00272 3.1903 4.54329C3.44404 3.93072 3.93072 3.44404 4.54329 3.1903C5.00272 3 5.58515 3 6.75 3C7.91485 3 8.49728 3 8.95671 3.1903C9.56928 3.44404 10.056 3.93072 10.3097 4.54329C10.5 5.00272 10.5 5.58515 10.5 6.75C10.5 7.91485 10.5 8.49728 10.3097 8.95671C10.056 9.56928 9.56928 10.056 8.95671 10.3097C8.49728 10.5 7.91485 10.5 6.75 10.5C5.58515 10.5 5.00272 10.5 4.54329 10.3097C3.93072 10.056 3.44404 9.56928 3.1903 8.95671Z" stroke="currentColor" strokeLinecap="square" strokeLinejoin="round" />
+  </symbol>
+  <symbol id="i-users" viewBox="0 0 24 24" data-hugeicons="UserGroupIcon">
+    <path d="M18.4995 20.5C18.2663 17.5685 15.8417 15.2477 12.808 15.0521L11.9995 15C11.7107 15.0076 11.4416 15.0178 11.1877 15.0298C8.18075 15.1723 5.7304 17.5974 5.49951 20.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M15.2495 9.25C15.2495 11.0449 13.7944 12.5 11.9995 12.5C10.2046 12.5 8.74952 11.0449 8.74952 9.25C8.74952 7.45507 10.2046 6 11.9995 6C13.7944 6 15.2495 7.45507 15.2495 9.25Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M5.50249 8.5C5.17908 7.99485 4.99158 7.39432 4.99158 6.75C4.99158 4.95507 6.44665 3.5 8.24157 3.5C8.68752 3.5 9.1125 3.58982 9.49939 3.75235" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M18.4963 8.5C18.8197 7.99485 19.0072 7.39432 19.0072 6.75C19.0072 4.95507 17.5521 3.5 15.7572 3.5C15.3113 3.5 14.8863 3.58982 14.4994 3.75235" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M22.0007 17.9996C21.8208 15.7374 19.9995 13.5 17.9995 13" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M1.99927 17.9996C2.17923 15.7374 4.00049 13.5 6.00049 13" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+  </symbol>
+  <symbol id="i-message" viewBox="0 0 24 24" data-hugeicons="BubbleChatIcon">
+    <path d="M12 21.5C17.2467 21.5 21.5 17.2467 21.5 12C21.5 6.75329 17.2467 2.5 12 2.5C6.75329 2.5 2.5 6.75329 2.5 12C2.5 13.3377 2.66372 14.5604 3.1189 15.6954C3.81756 17.4374 3.68195 18.9241 2.5 20.5C3.86146 21.1644 5.86811 21.1419 7 20.0725C8.45323 20.9748 10.1636 21.5 12 21.5Z" stroke="currentColor" strokeLinecap="square" strokeLinejoin="round" />
+    <path d="M12.2 12.0002H12M7.69961 11.9999H7.49961M16.6996 11.9999H16.4996M12.4 12.0002C12.4 12.2212 12.2209 12.4002 12 12.4002C11.7791 12.4002 11.6 12.2212 11.6 12.0002C11.6 11.7793 11.7791 11.6002 12 11.6002C12.2209 11.6002 12.4 11.7793 12.4 12.0002ZM7.89961 11.9999C7.89961 12.2208 7.72052 12.3999 7.49961 12.3999C7.2787 12.3999 7.09961 12.2208 7.09961 11.9999C7.09961 11.7789 7.2787 11.5999 7.49961 11.5999C7.72052 11.5999 7.89961 11.7789 7.89961 11.9999ZM16.8996 11.9999C16.8996 12.2208 16.7205 12.3999 16.4996 12.3999C16.2787 12.3999 16.0996 12.2208 16.0996 11.9999C16.0996 11.7789 16.2787 11.5999 16.4996 11.5999C16.7205 11.5999 16.8996 11.7789 16.8996 11.9999Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+  </symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24" data-hugeicons="Calendar03Icon">
+    <path d="M16 2V6M8 2V6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M13 4H11C7.22876 4 5.34315 4 4.17157 5.17157C3 6.34315 3 8.22876 3 12V14C3 17.7712 3 19.6569 4.17157 20.8284C5.34315 22 7.22876 22 11 22H13C16.7712 22 18.6569 22 19.8284 20.8284C21 19.6569 21 17.7712 21 14V12C21 8.22876 21 6.34315 19.8284 5.17157C18.6569 4 16.7712 4 13 4Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M3 10H21" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M12.1258 14H12.0008M12.1258 18H12.0008M7.625 14H7.5M7.625 18H7.5M16.625 14H16.5M12.2508 14C12.2508 14.1381 12.1389 14.25 12.0008 14.25C11.8628 14.25 11.7508 14.1381 11.7508 14C11.7508 13.8619 11.8628 13.75 12.0008 13.75C12.1389 13.75 12.2508 13.8619 12.2508 14ZM12.2508 18C12.2508 18.1381 12.1389 18.25 12.0008 18.25C11.8628 18.25 11.7508 18.1381 11.7508 18C11.7508 17.8619 11.8628 17.75 12.0008 17.75C12.1389 17.75 12.2508 17.8619 12.2508 18ZM7.75 14C7.75 14.1381 7.63807 14.25 7.5 14.25C7.36193 14.25 7.25 14.1381 7.25 14C7.25 13.8619 7.36193 13.75 7.5 13.75C7.63807 13.75 7.75 13.8619 7.75 14ZM7.75 18C7.75 18.1381 7.63807 18.25 7.5 18.25C7.36193 18.25 7.25 18.1381 7.25 18C7.25 17.8619 7.36193 17.75 7.5 17.75C7.63807 17.75 7.75 17.8619 7.75 18ZM16.75 14C16.75 14.1381 16.6381 14.25 16.5 14.25C16.3619 14.25 16.25 14.1381 16.25 14C16.25 13.8619 16.3619 13.75 16.5 13.75C16.6381 13.75 16.75 13.8619 16.75 14Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+  </symbol>
+  <symbol id="i-car" viewBox="0 0 24 24" data-hugeicons="Car01Icon">
+    <path d="M2.5 12L4.5 13" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M21.5 12.5L19.5 13" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M8 17.5L8.24567 16.8858C8.61101 15.9725 8.79368 15.5158 9.17461 15.2579C9.55553 15 10.0474 15 11.0311 15H12.9689C13.9526 15 14.4445 15 14.8254 15.2579C15.2063 15.5158 15.389 15.9725 15.7543 16.8858L16 17.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M2 17V19.882C2 20.2607 2.24075 20.607 2.62188 20.7764C2.86918 20.8863 3.10538 21 3.39058 21H5.10942C5.39462 21 5.63082 20.8863 5.87812 20.7764C6.25925 20.607 6.5 20.2607 6.5 19.882V18" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M17.5 18V19.882C17.5 20.2607 17.7408 20.607 18.1219 20.7764C18.3692 20.8863 18.6054 21 18.8906 21H20.6094C20.8946 21 21.1308 20.8863 21.3781 20.7764C21.7592 20.607 22 20.2607 22 19.882V17" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M20 8.5L21 8" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M4 8.5L3 8" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M4.5 9L5.5883 5.73509C6.02832 4.41505 6.24832 3.75503 6.7721 3.37752C7.29587 3 7.99159 3 9.38304 3H14.617C16.0084 3 16.7041 3 17.2279 3.37752C17.7517 3.75503 17.9717 4.41505 18.4117 5.73509L19.5 9" stroke="currentColor" strokeLinejoin="round" />
+    <path d="M4.5 9H19.5C20.4572 10.0135 22 11.4249 22 12.9996V16.4702C22 17.0407 21.6205 17.5208 21.1168 17.5875L18 18H6L2.88316 17.5875C2.37955 17.5208 2 17.0407 2 16.4702V12.9996C2 11.4249 3.54279 10.0135 4.5 9Z" stroke="currentColor" strokeLinejoin="round" />
+  </symbol>
+  <symbol id="i-logout" viewBox="0 0 24 24" data-hugeicons="Logout01Icon">
+    <path d="M15.5 8.04045C15.4588 6.87972 15.3216 6.15451 14.8645 5.58671C14.2114 4.77536 13.0944 4.52064 10.8605 4.01121L9.85915 3.78286C6.4649 3.00882 4.76777 2.6218 3.63388 3.51317C2.5 4.40454 2.5 6.1257 2.5 9.56803V14.432C2.5 17.8743 2.5 19.5955 3.63388 20.4868C4.76777 21.3782 6.4649 20.9912 9.85915 20.2171L10.8605 19.9888C13.0944 19.4794 14.2114 19.2246 14.8645 18.4133C15.3216 17.8455 15.4588 17.1203 15.5 15.9595" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M18.5 9.01172C18.5 9.01172 21.5 11.2212 21.5 12.0117C21.5 12.8023 18.5 15.0117 18.5 15.0117M21 12.0117H8.49998" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+  </symbol>
+  <symbol id="i-user" viewBox="0 0 24 24" data-hugeicons="UserIcon">
+    <path d="M20 21.0001C19.713 17.269 16.7289 14.3151 12.995 14.0662L12 13.9999C11.6446 14.0096 11.3134 14.0225 11.0008 14.0378C7.3 14.2192 4.28417 17.3057 4 21.0001" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <circle cx="12" cy="6.99988" r="4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+  </symbol>
+  <symbol id="i-clipboard" viewBox="0 0 24 24" data-hugeicons="ClipboardIcon">
+    <path d="M17.0235 3.03358L16.0689 2.77924C13.369 2.05986 12.019 1.70018 10.9555 2.31074C9.89196 2.9213 9.53023 4.26367 8.80678 6.94841L7.78366 10.7452C7.0602 13.4299 6.69848 14.7723 7.3125 15.8298C7.92652 16.8874 9.27651 17.247 11.9765 17.9664L12.9311 18.2208C15.631 18.9401 16.981 19.2998 18.0445 18.6893C19.108 18.0787 19.4698 16.7363 20.1932 14.0516L21.2163 10.2548C21.9398 7.57005 22.3015 6.22768 21.6875 5.17016C21.0735 4.11264 19.7235 3.75295 17.0235 3.03358Z" stroke="currentColor" />
+    <path d="M16.8538 7.43306C16.8538 8.24714 16.1901 8.90709 15.3714 8.90709C14.5527 8.90709 13.889 8.24714 13.889 7.43306C13.889 6.61898 14.5527 5.95904 15.3714 5.95904C16.1901 5.95904 16.8538 6.61898 16.8538 7.43306Z" stroke="currentColor" />
+    <path d="M12 20.9463L11.0477 21.2056C8.35403 21.9391 7.00722 22.3059 5.94619 21.6833C4.88517 21.0608 4.52429 19.6921 3.80253 16.9547L2.78182 13.0834C2.06006 10.346 1.69918 8.97731 2.31177 7.89904C2.84167 6.96631 4 7.00027 5.5 7.00015" stroke="currentColor" strokeLinecap="round" />
+  </symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24" data-hugeicons="ChartHistogramIcon">
+    <path d="M21 21H10C6.70017 21 5.05025 21 4.02513 19.9749C3 18.9497 3 17.2998 3 14V3" stroke="currentColor" strokeLinecap="round" />
+    <path d="M13 10L13 21" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M18 13L18 21" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M8 13L8 20" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M21 7.98693C19.16 7.98693 17.1922 8.24252 15.8771 6.49346C14.3798 4.50218 11.6202 4.50218 10.1229 6.49346C8.80782 8.24252 6.84003 7.98693 5 7.98693H3" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+  </symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24" data-hugeicons="Settings01Icon">
+    <path d="M3.95631 10.5829L3.03254 9.07084C2.74505 8.60024 2.7389 8.00978 3.01652 7.5333L3.63533 6.47124C3.90953 6.00064 4.41721 5.71571 4.96162 5.7269L6.69131 5.76245C6.92616 5.76728 7.15379 5.68727 7.34333 5.54846C7.79531 5.21745 8.28334 4.93276 8.80042 4.70139C9.01191 4.60675 9.19222 4.45165 9.30469 4.24903L10.1203 2.77965C10.3847 2.30328 10.8865 2.00781 11.4312 2.00781H12.6937C13.2384 2.00781 13.7403 2.30329 14.0047 2.77966L14.8202 4.24902C14.9327 4.45165 15.113 4.60675 15.3245 4.70139C15.8416 4.93274 16.3296 5.2174 16.7815 5.54838C16.9711 5.68718 17.1987 5.76718 17.4336 5.76235L19.1634 5.72676C19.7078 5.71557 20.2155 6.00049 20.4897 6.47111L21.1085 7.53314C21.3862 8.00963 21.38 8.60009 21.0925 9.07068L20.1687 10.5828C20.0481 10.7803 20.002 11.0134 20.0235 11.2439C20.0707 11.7486 20.0707 12.267 20.0235 12.7717C20.002 13.0022 20.0481 13.2353 20.1687 13.4329L21.0924 14.9448C21.3799 15.4154 21.3861 16.0058 21.1084 16.4823L20.4896 17.5444C20.2154 18.015 19.7077 18.2999 19.1633 18.2887L17.4338 18.2531C17.1989 18.2483 16.9713 18.3283 16.7817 18.4671C16.3297 18.7982 15.8416 19.0829 15.3245 19.3142C15.113 19.4089 14.9327 19.564 14.8202 19.7666L14.0047 21.236C13.7403 21.7123 13.2384 22.0078 12.6937 22.0078H11.4312C10.8866 22.0078 10.3847 21.7123 10.1203 21.236L9.30468 19.7665C9.19222 19.5639 9.01191 19.4088 8.80042 19.3142C8.28329 19.0828 7.79519 18.798 7.34316 18.467C7.15362 18.3282 6.92597 18.2482 6.69111 18.253L4.96175 18.2886C4.41733 18.2998 3.90963 18.0148 3.63543 17.5442L3.01663 16.4822C2.739 16.0057 2.74515 15.4152 3.03264 14.9446L3.95631 13.4327C4.07699 13.2351 4.12309 13.002 4.10154 12.7715C4.05437 12.267 4.05438 11.7486 4.10154 11.244C4.12308 11.0135 4.07699 10.7805 3.95631 10.5829Z" stroke="currentColor" />
+    <circle cx="12.0625" cy="12.0078" r="3.5" stroke="currentColor" />
+  </symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" data-hugeicons="Search01Icon">
+    <path d="M17 17L21 21" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M19 11C19 6.58172 15.4183 3 11 3C6.58172 3 3 6.58172 3 11C3 15.4183 6.58172 19 11 19C15.4183 19 19 15.4183 19 11Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+  </symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" data-hugeicons="Add01Icon">
+    <path d="M12.001 4.00101V20.001" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M20.001 12.001L4.00098 12.001" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+  </symbol>
+  <symbol id="i-chevron-right" viewBox="0 0 24 24" data-hugeicons="ArrowRight01Icon">
+    <path d="M9.00005 6C9.00005 6 15 10.4189 15 12C15 13.5812 9 18 9 18" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+  </symbol>
+  <symbol id="i-chevron-left" viewBox="0 0 24 24" data-hugeicons="ArrowLeft01Icon">
+    <path d="M15 6C15 6 9.00001 10.4189 9 12C8.99999 13.5812 15 18 15 18" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+  </symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24" data-hugeicons="Menu01Icon">
+    <path d="M4 5L20 5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M4 12L20 12" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M4 19L20 19" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+  </symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" data-hugeicons="Cancel01Icon">
+    <path d="M18.9991 19L5 5.00098" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M19 5L5.00092 18.999" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+  </symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24" data-hugeicons="Clock01Icon">
+    <circle cx="12" cy="12" r="10" stroke="currentColor" />
+    <path d="M12 8V12L14 14" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+  </symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24" data-hugeicons="Alert02Icon">
+    <path d="M13.9248 21H10.0752C5.44476 21 3.12955 21 2.27636 19.4939C1.42317 17.9879 2.60736 15.9914 4.97574 11.9985L6.90057 8.75333C9.17559 4.91778 10.3131 3 12 3C13.6869 3 14.8244 4.91777 17.0994 8.75332L19.0243 11.9985C21.3926 15.9914 22.5768 17.9879 21.7236 19.4939C20.8704 21 18.5552 21 13.9248 21Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M12 9V13" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M12.125 16.75H12M12.25 16.75C12.25 16.8881 12.1381 17 12 17C11.8619 17 11.75 16.8881 11.75 16.75C11.75 16.6119 11.8619 16.5 12 16.5C12.1381 16.5 12.25 16.6119 12.25 16.75Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+  </symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" data-hugeicons="Tick02Icon">
+    <path d="M5 14L8.5 17.5L19 6.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+  </symbol>
+  <symbol id="i-package" viewBox="0 0 24 24" data-hugeicons="PackageIcon">
+    <path d="M12 22C11.1818 22 10.4002 21.6698 8.83693 21.0095C4.94564 19.3657 3 18.5438 3 17.1613C3 16.7742 3 10.0645 3 7M12 22C12.8182 22 13.5998 21.6698 15.1631 21.0095C19.0544 19.3657 21 18.5438 21 17.1613V7M12 22L12 11.3548" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M8.32592 9.69138L5.40472 8.27785C3.80157 7.5021 3 7.11423 3 6.5C3 5.88577 3.80157 5.4979 5.40472 4.72215L8.32592 3.30862C10.1288 2.43621 11.0303 2 12 2C12.9697 2 13.8712 2.4362 15.6741 3.30862L18.5953 4.72215C20.1984 5.4979 21 5.88577 21 6.5C21 7.11423 20.1984 7.5021 18.5953 8.27785L15.6741 9.69138C13.8712 10.5638 12.9697 11 12 11C11.0303 11 10.1288 10.5638 8.32592 9.69138Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M6 12L8 13" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M17 4L7 9" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+  </symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24" data-hugeicons="ArrowRight02Icon">
+    <path d="M18.5 12L4.99997 12" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M13 18C13 18 19 13.5811 19 12C19 10.4188 13 6 13 6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+  </symbol>
+  <symbol id="i-rotate" viewBox="0 0 24 24" data-hugeicons="RotateLeft01Icon">
+    <path d="M20.0071 14.5662L19.3587 14.1731C18.7986 13.8508 18.3579 13.3564 18.102 12.7634L15.68 7.15102C15.5927 6.94865 15.4729 6.77988 15.328 6.64097C14.6876 6.02689 13.5808 6.28697 13.0432 6.99226C12.0506 8.29448 13.3839 9.52751 13.1022 10.6133L5.35908 6.26089C3.55799 5.28913 2.0024 7.87074 3.79277 9.06333L8.37607 11.6124C7.4934 12.765 5.25512 18.3551 8.12341 20.0599C8.28646 20.1568 8.4672 20.2213 8.64852 20.2773C8.76516 20.3134 8.88186 20.3496 8.99761 20.3857C9.8979 20.6667 11.6003 21.02 12.7668 20.9182C13.9811 20.8123 14.7421 21.4597 15.68 21.9995" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M9.36184 4.96447C9.75873 5.36011 11.4854 5.24597 12.1223 5.16653M9.36184 4.96447C8.96494 4.56883 8.95358 2.63679 9.03328 2.0019M9.36184 4.96447C10.3829 3.19624 14.4425 0.375691 18.4708 3.19624C20.4175 4.55924 20.6922 5.4182 21 5.99362" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+  </symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24" data-hugeicons="FilterHorizontalIcon">
+    <path d="M3 7H6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M3 17H9" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M18 17L21 17" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M15 7L21 7" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M6 7C6 6.06812 6 5.60218 6.15224 5.23463C6.35523 4.74458 6.74458 4.35523 7.23463 4.15224C7.60218 4 8.06812 4 9 4C9.93188 4 10.3978 4 10.7654 4.15224C11.2554 4.35523 11.6448 4.74458 11.8478 5.23463C12 5.60218 12 6.06812 12 7C12 7.93188 12 8.39782 11.8478 8.76537C11.6448 9.25542 11.2554 9.64477 10.7654 9.84776C10.3978 10 9.93188 10 9 10C8.06812 10 7.60218 10 7.23463 9.84776C6.74458 9.64477 6.35523 9.25542 6.15224 8.76537C6 8.39782 6 7.93188 6 7Z" stroke="currentColor" />
+    <path d="M12 17C12 16.0681 12 15.6022 12.1522 15.2346C12.3552 14.7446 12.7446 14.3552 13.2346 14.1522C13.6022 14 14.0681 14 15 14C15.9319 14 16.3978 14 16.7654 14.1522C17.2554 14.3552 17.6448 14.7446 17.8478 15.2346C18 15.6022 18 16.0681 18 17C18 17.9319 18 18.3978 17.8478 18.7654C17.6448 19.2554 17.2554 19.6448 16.7654 19.8478C16.3978 20 15.9319 20 15 20C14.0681 20 13.6022 20 13.2346 19.8478C12.7446 19.6448 12.3552 19.2554 12.1522 18.7654C12 18.3978 12 17.9319 12 17Z" stroke="currentColor" />
+  </symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24" data-hugeicons="CallIcon">
+    <path d="M4.68608 11.8562L8.27241 8.91997C9.09363 8.24762 9.50425 7.91144 9.62686 7.43546C9.74948 6.95947 9.55244 6.46656 9.15837 5.48073L9.08964 5.30881C8.56427 3.99453 8.30159 3.33739 7.73035 3.09241C7.15911 2.84743 6.50239 3.11029 5.18896 3.636L4.23135 4.0193C3.61206 4.26718 3.30241 4.39112 3.12904 4.67831C2.95567 4.96549 2.98711 5.26856 3.05001 5.8747C3.24604 7.76391 3.81427 10.0987 4.68608 11.8562ZM4.68608 11.8562C6.28944 15.0883 8.91961 17.7202 12.1496 19.3246M12.1496 19.3246L15.0839 15.7359C15.7558 14.9141 16.0918 14.5033 16.5674 14.3806C17.0431 14.2579 17.5357 14.455 18.5209 14.8494L18.6927 14.9181C20.0061 15.4438 20.6628 15.7067 20.9076 16.2783C21.1525 16.8499 20.8898 17.5071 20.3644 18.8214L19.9814 19.7796C19.7356 20.3944 19.6127 20.7018 19.3199 20.8753C19.0271 21.0487 18.7278 21.0123 18.1292 20.9393C16.3678 20.7246 13.8433 20.1658 12.1496 19.3246Z" stroke="currentColor" />
+  </symbol>
+  <symbol id="i-info" viewBox="0 0 24 24" data-hugeicons="InformationCircleIcon">
+    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M12 16V12" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M12.125 8.25H12M12.25 8.25C12.25 8.11193 12.1381 8 12 8C11.8619 8 11.75 8.11193 11.75 8.25C11.75 8.38807 11.8619 8.5 12 8.5C12.1381 8.5 12.25 8.38807 12.25 8.25Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+  </symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24" data-hugeicons="Edit02Icon">
+    <path d="M14.0737 3.88545C14.8189 3.07808 15.1915 2.6744 15.5874 2.43893C16.5427 1.87076 17.7191 1.85309 18.6904 2.39232C19.0929 2.6158 19.4769 3.00812 20.245 3.79276C21.0131 4.5774 21.3972 4.96972 21.6159 5.38093C22.1438 6.37312 22.1265 7.57479 21.5703 8.5507C21.3398 8.95516 20.9446 9.33578 20.1543 10.097L10.7506 19.1543C9.25288 20.5969 8.504 21.3182 7.56806 21.6837C6.63212 22.0493 5.6032 22.0224 3.54536 21.9686L3.26538 21.9613C2.63891 21.9449 2.32567 21.9367 2.14359 21.73C1.9615 21.5234 1.98636 21.2043 2.03608 20.5662L2.06308 20.2197C2.20301 18.4235 2.27297 17.5255 2.62371 16.7182C2.97444 15.9109 3.57944 15.2555 4.78943 13.9445L14.0737 3.88545Z" stroke="currentColor" strokeLinejoin="round" />
+    <path d="M13 4L20 11" stroke="currentColor" strokeLinejoin="round" />
+    <path d="M14 22L22 22" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+  </symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24" data-hugeicons="Delete02Icon">
+    <path d="M18.8516 16.3743L19.5 6H4.5L5.14839 16.3743C5.315 19.0401 5.39831 20.373 6.26426 21.1865C7.13021 22 8.46571 22 11.1367 22H12.8633C15.5343 22 16.8698 22 17.7357 21.1865C18.6017 20.373 18.685 19.0401 18.8516 16.3743Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M16 6H21M16 6L15.3778 4.34082C15.0007 3.33524 14.8122 2.83245 14.4402 2.50292C14.3213 2.39765 14.1904 2.3069 14.0501 2.2326C13.6109 2 13.074 2 12 2C10.926 2 10.3891 2 9.9499 2.2326C9.8096 2.3069 9.67865 2.39765 9.55982 2.50292C9.18783 2.83245 8.99928 3.33524 8.62219 4.34082L8 6M16 6H8M3 6H8" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M9.5 11V17M14.5 11V17" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+  </symbol>
+  <symbol id="i-student" viewBox="0 0 24 24" data-hugeicons="StudentIcon">
+    <path d="M19 5L12 2L5 5L8.5 6.5V8.5C8.5 8.5 9.66667 8 12 8C14.3333 8 15.5 8.5 15.5 8.5V6.5L19 5ZM19 5V9" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M15.5 8.5V9.5C15.5 11.433 13.933 13 12 13C10.067 13 8.5 11.433 8.5 9.5V8.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M7.78256 16.7033C6.68218 17.3878 3.79706 18.7854 5.55429 20.5342C6.41269 21.3885 7.36872 21.9995 8.57068 21.9995H15.4293C16.6313 21.9995 17.5873 21.3885 18.4457 20.5342C20.2029 18.7854 17.3178 17.3878 16.2174 16.7033C13.6371 15.0982 10.3629 15.0982 7.78256 16.7033Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+  </symbol>
+  <symbol id="i-teacher" viewBox="0 0 24 24" data-hugeicons="TeacherIcon">
+    <path d="M2 2H16C17.8856 2 18.8284 2 19.4142 2.58579C20 3.17157 20 4.11438 20 6V12C20 13.8856 20 14.8284 19.4142 15.4142C18.8284 16 17.8856 16 16 16H9" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M10 6.5H16" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M2 17V13C2 12.0572 2 11.5858 2.29289 11.2929C2.58579 11 3.05719 11 4 11H6M2 17H6M2 17V22M6 17V11M6 17V22M6 11H9H12" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M6 6.5C6 7.60457 5.10457 8.5 4 8.5C2.89543 8.5 2 7.60457 2 6.5C2 5.39543 2.89543 4.5 4 4.5C5.10457 4.5 6 5.39543 6 6.5Z" stroke="currentColor" />
+  </symbol>
+  <symbol id="i-sort" viewBox="0 0 24 24" data-hugeicons="ArrowUpDownIcon">
+    <path d="M7 4V20" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M17 19L17 4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M10 6.99998C10 6.99998 7.79053 4.00001 6.99998 4C6.20942 3.99999 4 7 4 7" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M20 17C20 17 17.7905 20 17 20C16.2094 20 14 17 14 17" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+  </symbol>
+  <symbol id="i-sort-up" viewBox="0 0 24 24" data-hugeicons="ArrowUp01Icon">
+    <path d="M17.9998 15C17.9998 15 13.5809 9.00001 11.9998 9C10.4187 8.99999 5.99985 15 5.99985 15" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+  </symbol>
+  <symbol id="i-sort-down" viewBox="0 0 24 24" data-hugeicons="ArrowDown01Icon">
+    <path d="M18 9.00005C18 9.00005 13.5811 15 12 15C10.4188 15 6 9 6 9" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+  </symbol>
+  <symbol id="i-first-page" viewBox="0 0 24 24" data-hugeicons="ArrowLeftDoubleIcon">
+    <path d="M11.5 18C11.5 18 5.50001 13.5811 5.5 12C5.49999 10.4188 11.5 6 11.5 6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M18.5 18C18.5 18 12.5 13.5811 12.5 12C12.5 10.4188 18.5 6 18.5 6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+  </symbol>
+  <symbol id="i-last-page" viewBox="0 0 24 24" data-hugeicons="ArrowRightDoubleIcon">
+    <path d="M12.5 18C12.5 18 18.5 13.5811 18.5 12C18.5 10.4188 12.5 6 12.5 6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M5.50005 18C5.50005 18 11.5 13.5811 11.5 12C11.5 10.4188 5.5 6 5.5 6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+  </symbol>
+  <symbol id="i-car-driving" viewBox="0 0 24 24" data-hugeicons="Car04Icon">
+    <path d="M4.5 11.7073C3.83222 12.0634 3.34135 12.6373 2.98052 13.2888C2.25918 14.591 2.05755 16.2028 2.00119 17.0021C1.98176 17.2775 2.20345 17.5 2.47992 17.5H3.98173M2.98052 13.2888C2.98052 10.144 3.89594 6.34904 5.72678 4.71122C5.88815 4.56686 6.10124 4.5 6.31787 4.5H11.1118C11.6911 4.5 12.2694 4.6171 12.7553 4.93222C13.9539 5.70953 15.7652 7.27971 17.3038 9.68934C17.4311 9.88859 17.6211 10.0398 17.8435 10.1204C18.7292 10.4415 19.7153 10.887 20.3463 11.1839C20.7723 11.3844 21.1116 11.7341 21.273 12.176C21.7174 13.393 21.9682 14.7508 22 16.9994C22.0038 17.2755 21.7793 17.5 21.5028 17.5H20.001M15.9962 17.5H7.98654" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M8 17.5C8 18.6046 7.10457 19.5 6 19.5C4.89543 19.5 4 18.6046 4 17.5C4 16.3954 4.89543 15.5 6 15.5C7.10457 15.5 8 16.3954 8 17.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M20 17.5C20 18.6046 19.1046 19.5 18 19.5C16.8954 19.5 16 18.6046 16 17.5C16 16.3954 16.8954 15.5 18 15.5C19.1046 15.5 20 16.3954 20 17.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M17.5 10C14.5 9 11 8.5 7 9C7 7 8 5 8.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M8 11H9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+  </symbol>
+</svg>
+); }

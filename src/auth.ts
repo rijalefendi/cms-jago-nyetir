@@ -19,7 +19,7 @@ export async function request(userId: string, path: string, method = 'GET', body
   if (error || !data.session || data.session.user.id !== userId) throw new ApiError('Sesi tidak tersedia. Silakan masuk ulang.', 401);
   let res: Response;
   try {
-    res = await fetch(`/api${path}`, {
+    res = await fetch(`/api/v1${path}`, {
       method, headers: { Authorization: `Bearer ${data.session.access_token}`, 'Content-Type': 'application/json' },
       body: body ? JSON.stringify(body) : undefined,
     });
@@ -33,9 +33,10 @@ export async function request(userId: string, path: string, method = 'GET', body
   try { result = raw ? JSON.parse(raw) : null; } catch { result = null; }
   if (!res.ok) {
     const message = res.status === 401 ? 'Akses belum dapat diverifikasi. Coba lagi atau masuk ulang.'
-      : res.status === 403 ? 'Akses ditolak. Owner diperlukan untuk tindakan ini.'
+      : res.status === 403 && result?.code === 'verified_email_required' ? 'Periksa email untuk memverifikasi akun sebelum melanjutkan.'
+      : res.status === 403 ? (result?.message || result?.error || 'Akses ditolak.')
       : res.status >= 500 ? 'Layanan belum dapat dihubungi. Silakan coba lagi.'
-      : result?.error || result?.message || 'Permintaan gagal. Silakan coba lagi.';
+      : result?.message || result?.error || 'Permintaan gagal. Silakan coba lagi.';
     throw new ApiError(message, res.status, result?.code);
   }
   return result;

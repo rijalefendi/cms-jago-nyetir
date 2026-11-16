@@ -3,6 +3,7 @@ export function instructorTablePage(rows, { query = '', sort = 'name', direction
   const filtered = rows.filter(row => `${row.name || ''} ${row.notes || ''} ${row.description || ''}`.toLocaleLowerCase('id').includes(search));
   const getValue = row => sort === 'total_sessions' ? row.total_sessions : sort === 'status' ? (row.active ? 'Aktif' : 'Nonaktif') : sort === 'transmission' ? (row.transmission || row.skills || '') : (row.name || '');
   const ordered = [...filtered].sort((a, b) => {
+    if (sort === 'created_at') return (direction === 'desc' ? -1 : 1) * (Date.parse(a.created_at) - Date.parse(b.created_at));
     if (sort === 'total_sessions') return direction === 'desc' ? b.total_sessions - a.total_sessions : a.total_sessions - b.total_sessions;
     return direction === 'desc'
       ? String(getValue(b)).localeCompare(String(getValue(a)), 'id', { sensitivity: 'base' })

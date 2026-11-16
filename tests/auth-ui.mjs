@@ -1,6 +1,90 @@
 import assert from 'node:assert/strict';
 import { fixture, response, school, session, submit, tick, waitFor } from './auth-fixture.mjs';
 
+// Login and registration share the selected layout in development and production.
+for (const production of [false, true]) {
+  const auth = fixture({ production, url: 'http://localhost/login?variant=floating' });
+  await waitFor(() => auth.document.querySelector('.login-vertical form'));
+  await waitFor(() => auth.dom.window.location.search === '');
+  assert.equal(auth.document.querySelector('[aria-label="Preview tampilan login"]'), null);
+  assert.ok(auth.document.querySelector('.login-road-area .login-car use[href="#i-car-driving"]'));
+  auth.document.querySelector('[data-auth-mode="signup"]').click();
+  await waitFor(() => auth.document.querySelector('h1')?.textContent === 'Daftar akun');
+  assert.equal(auth.dom.window.location.pathname, '/regis');
+  assert.ok(auth.document.querySelector('.login-vertical .login-road-area'));
+  auth.close();
+  const direct = fixture({ production, url: 'http://localhost/regis' });
+  await waitFor(() => direct.document.querySelector('.login-vertical form'));
+  assert.equal(direct.document.querySelector('h1').textContent, 'Daftar akun');
+  submit(direct, { email: 'owner@example.com', password: 'long-password' });
+  await waitFor(() => direct.document.querySelector('h1')?.textContent === 'Verifikasi email');
+  assert.ok(direct.document.querySelector('.login-road-area'));
+  direct.close();
+}
+
+// Password recovery uses a real SDK request, keeps the callback out of the workspace,
+// and updates a password only after a valid recovery session.
+const forgot = fixture({ url: 'http://localhost/login' });
+await waitFor(() => forgot.document.querySelector('.auth-password-label a'));
+assert.equal(forgot.document.querySelector('.auth-password-label label').htmlFor, 'auth-password');
+forgot.document.querySelector('.auth-password-label a').click();
+await waitFor(() => forgot.document.querySelector('h1')?.textContent === 'Lupa password?');
+assert.equal(forgot.dom.window.location.pathname, '/lupa-password');
+let resetArgs; let finishReset; let resetCalls = 0;
+forgot.auth.resetPasswordForEmail = (...args) => { resetArgs = args; resetCalls++; return new Promise(resolve => { finishReset = resolve; }); };
+submit(forgot, { email: 'bad-email' });
+await waitFor(() => forgot.document.querySelector('[role="alert"]'));
+assert.equal(resetCalls, 0);
+submit(forgot, { email: 'owner@example.com' });
+submit(forgot, { email: 'owner@example.com' });
+await waitFor(() => finishReset);
+assert.equal(resetCalls, 1);
+assert.deepEqual(JSON.parse(JSON.stringify(resetArgs)), ['owner@example.com', { redirectTo: 'http://localhost/lupa-password?reset=1' }]);
+finishReset({ error: Error('offline') });
+await waitFor(() => /Tautan belum berhasil/.test(forgot.document.body.textContent));
+forgot.auth.resetPasswordForEmail = async () => ({ error: null });
+submit(forgot, { email: 'owner@example.com' });
+await waitFor(() => forgot.document.querySelector('h1')?.textContent === 'Periksa email Anda');
+assert.match(forgot.document.body.textContent, /Jika email terdaftar/);
+forgot.close();
+const expired = fixture({ url: 'http://localhost/lupa-password?reset=1#error=access_denied&error_description=expired' });
+await waitFor(() => /Tautan pemulihan tidak valid/.test(expired.document.body.textContent));
+assert.equal(expired.document.querySelector('form'), null);
+assert.equal(expired.dom.window.location.hash, '');
+[...expired.document.querySelectorAll('button')].find(b => b.textContent === 'Minta tautan baru').click();
+await waitFor(() => expired.document.querySelector('[name="email"]'));
+assert.equal(expired.dom.window.location.search, '');
+expired.close();
+const recovery = fixture({ initial: session(), url: 'http://localhost/lupa-password?reset=1#access_token=sensitive&type=recovery' });
+await waitFor(() => recovery.document.querySelector('[name="confirm"]'));
+assert.equal(recovery.calls.length, 0, 'Recovery never bootstraps school data');
+assert.equal(recovery.dom.window.location.hash, '');
+let updated;
+recovery.auth.updateUser = async values => { updated = values; return { error: null }; };
+submit(recovery, { password: 'long-password', confirm: 'different' });
+await waitFor(() => recovery.document.querySelector('[role="alert"]'));
+assert.equal(updated, undefined);
+submit(recovery, { password: 'long-password', confirm: 'long-password' });
+await waitFor(() => recovery.document.querySelector('h1')?.textContent === 'Kata sandi diperbarui');
+assert.deepEqual(JSON.parse(JSON.stringify(updated)), { password: 'long-password' });
+recovery.auth.signOut = async () => ({ error: Error('offline') });
+[...recovery.document.querySelectorAll('button')].find(b => b.textContent === 'Kembali ke Masuk').click();
+await waitFor(() => /sudah tersimpan, tetapi gagal keluar/.test(recovery.document.body.textContent));
+assert.equal(recovery.document.querySelector('h1').textContent, 'Kata sandi diperbarui');
+recovery.auth.signOut = async () => { recovery.emit(null); return { error: null }; };
+[...recovery.document.querySelectorAll('button')].find(b => b.textContent === 'Kembali ke Masuk').click();
+await waitFor(() => recovery.dom.window.location.pathname === '/login');
+await waitFor(() => recovery.document.querySelector('h1')?.textContent === 'Masuk');
+recovery.close();
+const recoveryEvent = fixture({ url: 'http://localhost/login' });
+await waitFor(() => recoveryEvent.document.querySelector('form'));
+recoveryEvent.emit(session(), 'PASSWORD_RECOVERY');
+await waitFor(() => recoveryEvent.document.querySelector('[name="confirm"]'));
+assert.equal(recoveryEvent.dom.window.location.pathname, '/lupa-password');
+assert.equal(recoveryEvent.calls.length, 0);
+recoveryEvent.close();
+
+
 // Restore must finish before either login or business content is shown.
 let restore;
 let f = fixture({ restore: () => new Promise(resolve => { restore = resolve; }) });
@@ -10,6 +94,7 @@ assert.equal(f.document.querySelector('form'), null);
 restore({ data: { session: null }, error: null });
 await waitFor(() => f.document.querySelector('form'));
 assert.match(f.document.querySelector('h1').textContent, /Masuk/);
+await waitFor(() => f.dom.window.location.pathname === '/login');
 submit(f, { email: 'owner@example.com', password: 'wrong-password' });
 await waitFor(() => f.document.querySelector('[role="alert"]'));
 assert.match(f.document.querySelector('[role="alert"]').textContent, /Email atau kata sandi salah/);
@@ -25,6 +110,7 @@ assert.equal(f.errors[0][1].message, 'Invalid login credentials');
 assert.equal(f.errors[0][1].status, 400);
 f.document.querySelector('[data-auth-mode="signup"]').click();
 await waitFor(() => f.document.querySelector('h1')?.textContent === 'Daftar akun');
+assert.equal(f.dom.window.location.pathname, '/regis');
 let signup;
 let signupCount = 0;
 let finishSignup;
@@ -39,6 +125,27 @@ await waitFor(() => f.document.body.textContent.includes('Periksa email untuk me
 assert.match(f.document.body.textContent, /Periksa email untuk memverifikasi akun/);
 assert.equal(signup.options.emailRedirectTo, 'http://localhost/auth/callback');
 assert.equal(f.calls.length, 0);
+f.close();
+
+// Auth routes support direct entry, browser history, and logged-out dashboard links.
+f = fixture({ url: 'http://localhost/regis' });
+await waitFor(() => f.document.querySelector('h1')?.textContent === 'Daftar akun');
+assert.equal(f.dom.window.location.pathname, '/regis');
+f.document.querySelector('[data-auth-mode="login"]').click();
+await waitFor(() => f.document.querySelector('h1')?.textContent === 'Masuk');
+assert.equal(f.dom.window.location.pathname, '/login');
+f.dom.window.history.back();
+await waitFor(() => f.document.querySelector('h1')?.textContent === 'Daftar akun');
+assert.equal(f.dom.window.location.pathname, '/regis');
+f.dom.window.history.forward();
+await waitFor(() => f.document.querySelector('h1')?.textContent === 'Masuk');
+f.close();
+f = fixture({ url: 'http://localhost/dashboard/beranda' });
+await waitFor(() => f.dom.window.location.pathname === '/login');
+assert.equal(f.document.querySelector('h1').textContent, 'Masuk');
+f.close();
+f = fixture({ initial: session(), url: 'http://localhost/login' });
+await waitFor(() => f.dom.window.location.pathname === '/dashboard/beranda');
 f.close();
 
 // Password visibility is always available; signup shows a live length checklist.
@@ -265,21 +372,30 @@ f = fixture();
 await waitFor(() => f.document.querySelector('form'));
 f.auth.signInWithPassword = async () => { const next = session(); f.emit(next); return { data: { session: next }, error: null }; };
 submit(f, { email: 'owner@example.com', password: 'long-password' });
-await waitFor(() => f.document.querySelector('.live-nav'));
-assert.equal(f.calls.filter(([url]) => url === '/api/schools').length, 1);
+await waitFor(() => f.document.querySelector('.live-nav button:not(:disabled)'));
+assert.equal(f.calls.filter(([url]) => url === '/api/v1/schools').length, 1);
+assert.ok(f.document.querySelector('.sidebar .school-name'), 'live uses the dashboard shell');
+assert.equal(f.document.querySelector('.school-name').textContent, 'Sekolah');
+assert.equal(f.document.getElementById('schoolPicker'), null, 'live never exposes the demo school switcher');
+const liveMenu = f.document.querySelector('.mobile-menu-btn');
+liveMenu.click();
+await waitFor(() => liveMenu.getAttribute('aria-expanded') === 'true');
+f.document.dispatchEvent(new f.dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+await waitFor(() => liveMenu.getAttribute('aria-expanded') === 'false');
 f.auth.signOut = async () => ({ error: Error('Network error') });
 [...f.document.querySelectorAll('button')].find(button => button.textContent === 'Keluar').click();
-await waitFor(() => f.document.querySelector('[role="alert"]'));
+await waitFor(() => [...f.document.querySelectorAll('[role="alert"]')].some(alert => alert.textContent.includes('Gagal keluar')));
 assert.match(f.document.body.textContent, /Gagal keluar/);
 f.auth.signOut = async () => { f.emit(null); return { error: null }; };
 [...f.document.querySelectorAll('button')].find(button => button.textContent === 'Keluar').click();
 await waitFor(() => f.document.querySelector('h1')?.textContent === 'Masuk');
 assert.equal(f.document.querySelector('.live-nav'), null);
+await waitFor(() => f.dom.window.location.pathname === '/login');
 f.close();
 
 f = fixture({ initial: session(), url: 'http://localhost/auth/callback#access_token=sensitive' });
-await waitFor(() => f.document.querySelector('.live-nav'));
-assert.equal(f.dom.window.location.pathname, '/');
+await waitFor(() => f.document.querySelector('.live-nav button:not(:disabled)'));
+await waitFor(() => f.dom.window.location.pathname === '/dashboard/beranda');
 assert.equal(f.dom.window.location.hash, '');
 f.close();
 
@@ -367,7 +483,7 @@ submit(f, { name: ' Sekolah ', location: ' Samarinda ', weekday_open: '08:00', w
 await waitFor(() => f.document.body.textContent.includes('berhasil disimpan') && f.document.querySelector('[name="name"]'));
 assert.deepEqual(created, { name: 'Sekolah', location: 'Samarinda', weekday: { open: '08:00', close: '17:00' }, weekend: { closed: true } });
 assert.match(f.document.body.textContent, /berhasil disimpan/);
-assert.match(f.document.querySelector('h2').textContent, /Pengaturan Sekolah/);
+assert.match(f.document.querySelector('h1').textContent, /Pengaturan Sekolah/);
 f.close();
 
 // Unknown role never enables updates; setup gate does not fetch operational data.
@@ -383,16 +499,22 @@ assert.ok(f.calls.every(([url]) => url.endsWith('/schools') || url.endsWith('/se
 f.close();
 
 // Token refresh doesn't bootstrap again; every request reads the newest token.
-f = fixture({ initial: session(), fetch: async url => response(url === '/api/schools' ? [school] : []) });
-await waitFor(() => f.document.querySelector('.live-nav'));
+f = fixture({ initial: session(), fetch: async url => response(url === '/api/v1/schools' ? [school] : []) });
+await waitFor(() => f.document.querySelector('.live-nav button:not(:disabled)'));
 f.emit(session('user-a', 'token-new'));
 await tick();
-assert.equal(f.calls.filter(([url]) => url === '/api/schools').length, 1);
+assert.equal(f.calls.filter(([url]) => url === '/api/v1/schools').length, 1);
 f.document.querySelector('.live-nav button').click();
 await tick();
-f.document.querySelectorAll('.live-nav button')[1].click();
+f.document.querySelector('.live-nav [data-live-page="packages"]').click();
 await tick();
 assert.equal(f.calls.at(-1)[1].headers.Authorization, 'Bearer token-new');
+f.document.querySelector('[data-live-page="settings"]').click();
+await waitFor(() => f.document.querySelector('h1')?.textContent === 'Pengaturan Sekolah');
+f.document.querySelector('.live-nav [data-live-page="instructors"]').click();
+await waitFor(() => f.document.querySelector('h1')?.textContent === 'Instruktur');
+assert.equal(f.document.querySelector('.topbar-title'), null, 'page title appears only in the main content');
+
 f.emit(null);
 await tick();
 assert.match(f.document.querySelector('h1').textContent, /Masuk/);
@@ -419,16 +541,16 @@ f.close();
 // Server setup invalidation removes operational content without logging out.
 let needsSetup = false;
 f = fixture({ initial: session(), fetch: async url => {
-  if (url === '/api/schools') return response([school]);
+  if (url === '/api/v1/schools') return response([school]);
   if (url.endsWith('/settings')) return response([{ ...school, weekday_closed: false, weekday_open: '08:00:00', weekday_close: '17:00:00', weekend_closed: true }]);
   return needsSetup ? response({ code: 'school_setup_required', error: 'Setup required' }, 403) : response([]);
 } });
-await waitFor(() => f.document.querySelector('.live-nav'));
+await waitFor(() => f.document.querySelector('.live-nav button:not(:disabled)'));
 needsSetup = true;
-f.document.querySelectorAll('.live-nav button')[1].click();
+f.document.querySelector('.live-nav [data-live-page="packages"]').click();
 await waitFor(() => f.document.getElementById('setup-reason') && f.document.querySelector('.school-profile'));
 assert.match(f.document.body.textContent, /Lengkapi data sekolah terlebih dahulu/);
-assert.equal(f.document.querySelector('h1').textContent, 'Jagonyetir');
+assert.equal(f.document.querySelector('h1').textContent, 'Pengaturan Sekolah');
 assert.equal(f.document.querySelector('.live-nav button:not(:disabled)'), null);
 f.close();
 
@@ -466,14 +588,28 @@ await waitFor(() => f.document.querySelector('.instructor-table'));
 assert.equal(f.calls.length, 0);
 const previewErrors = [];
 f.dom.window.addEventListener('error', event => { previewErrors.push(event.message); event.preventDefault(); });
-f.emit(null);
+const logoutButton = [...f.document.querySelectorAll('.topbar button')].find(button => button.textContent === 'Keluar');
+assert.ok(logoutButton, 'authenticated preview exposes logout in the topbar');
+f.auth.signOut = async () => ({ error: Error('offline') });
+logoutButton.click();
+await waitFor(() => f.document.getElementById('toast')?.textContent === 'Gagal keluar. Silakan coba lagi.');
+assert.equal(logoutButton.disabled, false);
+assert.ok(f.document.getElementById('main'), 'failed logout keeps the workspace available');
+let finishLogout;
+f.auth.signOut = () => new Promise(resolve => { finishLogout = () => { f.emit(null); resolve({ error: null }); }; });
+logoutButton.click();
+await waitFor(() => logoutButton.disabled);
+assert.equal(logoutButton.disabled, true);
+assert.equal(logoutButton.textContent, 'Memproses...');
+finishLogout();
 await waitFor(() => f.document.querySelector('h1')?.textContent === 'Masuk');
 assert.equal(f.document.getElementById('main'), null);
 f.document.dispatchEvent(new f.dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 f.dom.window.dispatchEvent(new f.dom.window.PopStateEvent('popstate'));
 assert.deepEqual(previewErrors, [], 'demo listeners must be removed when auth ends');
+await waitFor(() => f.dom.window.location.pathname === '/login');
 f.emit(session());
-await waitFor(() => f.document.querySelector('.instructor-table'));
+await waitFor(() => f.document.querySelector('[data-react-page="OverviewPage"]') && f.dom.window.location.pathname === '/dashboard/beranda');
 assert.equal(f.calls.length, 0);
 assert.deepEqual(f.errors.filter(([label]) => label !== '[auth:login]'), []);
 f.close();
@@ -487,6 +623,7 @@ f = fixture({ preview: true, production: true, initial: session(), fetch: async 
 await waitFor(() => f.document.querySelector('[role="alert"]'));
 assert.match(f.document.body.textContent, /Layanan belum dapat dihubungi/);
 assert.equal(f.calls.length, 1);
-assert.equal(f.document.getElementById('main'), null);
+assert.equal(f.document.querySelector('[data-react-page="OverviewPage"]'), null);
+assert.equal(f.document.getElementById('schoolPicker'), null);
 f.close();
 console.log('Auth UI passed');

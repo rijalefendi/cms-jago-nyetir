@@ -1,5 +1,5 @@
 export const demoSchools = Object.freeze([
-  { id: 'radja', name: 'radjamengemudi', location: 'Samarinda', timeZone: 'Asia/Makassar', logo: '/logo.png' },
+  { id: 'radja', name: 'radjamengemudi', location: 'Samarinda', timeZone: 'Asia/Makassar', logo: '' },
   { id: 'demo-b', name: 'Sekolah Mengemudi Contoh', location: 'Jakarta', timeZone: 'Asia/Jakarta', logo: '' },
 ]);
 
@@ -17,6 +17,12 @@ export function createDemoStore(storage) {
           // shortcut: demo students store a package label, use enrollment IDs when wiring the database.
           for (const student of data.students) {
             if (!student.packageId) student.packageId = data.packages.find(p => p.name === student.package?.split(' · ')[0])?.id;
+          }
+          data.leads = [];
+          for (const car of data.cars) delete car.image;
+          for (const pack of data.packages) {
+            delete pack.discount_price; delete pack.start_discount; delete pack.end_discount;
+            pack.transmission ||= 'Matic'; pack.session_duration_minutes ||= 60;
           }
           return data;
         }

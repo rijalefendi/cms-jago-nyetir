@@ -21,8 +21,8 @@ test('demo records remain separate by school', async () => {
   const storage = { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value), removeItem: key => values.delete(key) };
   const store = createDemoStore(storage);
   const fixture = () => ({ leads: [], students: [], sessions: [], instructors: [], cars: [] });
-  await store.save('one', { ...fixture(), leads: [{ id: 'L1' }] });
-  assert.equal((await store.load('one', fixture)).leads.length, 1);
+  await store.save('one', { ...fixture(), students: [{ id: 'S1' }] });
+  assert.equal((await store.load('one', fixture)).students.length, 1);
   assert.equal((await store.load('two', fixture)).leads.length, 0);
   await store.reset('one');
   assert.equal((await store.load('one', fixture)).leads.length, 0);
@@ -31,4 +31,17 @@ test('demo records remain separate by school', async () => {
 test('corrupt demo data falls back to fixture', async () => {
   const store = createDemoStore({ getItem: () => '{bad', setItem() {}, removeItem() {} });
   assert.deepEqual(await store.load('school', () => ({ fixture: true })), { fixture: true });
+});
+
+
+test('v1 ignores removed fields without resetting other saved data', () => {
+  const old = seed();
+  old.leads = [{ id: 'old-lead' }]; old.cars[0].image = 'old-photo';
+  old.packages[0].discount_price = 1; old.packages[0].start_discount = '2026-01-01'; old.packages[0].end_discount = '2026-12-31';
+  const data = createDemoStore({ getItem: () => JSON.stringify(old) }).load('school', seed);
+  assert.equal(data.leads.length, 0);
+  assert.equal(data.cars[0].image, undefined);
+  assert.equal(data.packages[0].discount_price, undefined);
+  assert.deepEqual(data.students, old.students);
+  assert.deepEqual(data.sessions, old.sessions);
 });

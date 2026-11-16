@@ -1,10 +1,90 @@
-﻿-- Run in a Supabase Postgres project. Supabase Auth owns users.
+-- psql only. Business database, separate from hosted Supabase Auth.
+\set ON_ERROR_STOP on
+do $$ begin
+  if to_regclass('auth.users') is not null or to_regnamespace('supabase_migrations') is not null then
+    raise exception 'Refusing to change a Supabase database';
+  end if;
+  if to_regclass('public.schools') is not null then
+    raise exception 'Business schema already exists; do not reapply schema.sql';
+  end if;
+end $$;
+\getenv api_password APP_DB_PASSWORD
+\if :{?api_password}
+select set_config('jago.api_password',:'api_password',false) as configured \gset
+\else
+do $$ begin raise exception 'APP_DB_PASSWORD required'; end $$;
+\endif
+do $$ begin
+  if length(current_setting('jago.api_password')) < 24 then
+    raise exception 'APP_DB_PASSWORD must contain at least 24 characters';
+  end if;
+  if not exists(select 1 from pg_roles where rolname='authenticated') then
+    create role authenticated nologin;
+  end if;
+  if exists(select 1 from pg_roles where rolname='authenticated'
+    and (rolsuper or rolbypassrls or rolcanlogin or rolcreatedb or rolcreaterole)) then
+    raise exception 'authenticated must be an unprivileged NOLOGIN role';
+  end if;
+  if not exists(select 1 from pg_roles where rolname='jago_app') then
+    create role jago_app noinherit;
+  end if;
+  if exists(select 1 from pg_roles where rolname='jago_app'
+    and (rolsuper or rolbypassrls or rolcreatedb or rolcreaterole)) then
+    raise exception 'jago_app must be unprivileged';
+  end if;
+  execute format('alter role jago_app login noinherit password %L',current_setting('jago.api_password'));
+end $$;
+grant authenticated to jago_app;
+revoke create on schema public from public;
+create schema if not exists app_private;
+revoke all on schema app_private from public;
+create table if not exists app_private.instance (
+  singleton boolean primary key default true check(singleton),
+  environment text not null check(environment in ('development','production')),
+  schema_version integer not null default 1 check(schema_version>0)
+);
+alter table app_private.instance add column if not exists schema_version integer not null default 1 check(schema_version>0);
+insert into app_private.instance(singleton,environment) values(true,coalesce(nullif(current_setting('jago.environment',true),''),'production'))
+on conflict(singleton) do update set schema_version=1;
+grant usage on schema app_private to jago_app;
+grant select on app_private.instance to jago_app;
+create table if not exists app_private.users (
+  id uuid primary key,
+  email text,
+  email_confirmed_at timestamptz
+);
+create schema if not exists auth;
+revoke all on schema auth from public;
+create or replace function auth.uid() returns uuid language sql stable as $$
+  select coalesce(nullif(current_setting('app.identity',true),'')::jsonb->>'sub',
+    nullif(current_setting('app.user_id',true),''))::uuid
+$$;
+create or replace function app_private.sync_user() returns void
+language plpgsql security definer set search_path=pg_catalog,app_private as $$
+declare claims jsonb := nullif(current_setting('app.identity',true),'')::jsonb;
+begin
+  if claims->>'iss' is distinct from 'jago-api' or claims->>'role' is distinct from 'authenticated'
+    or auth.uid() is null or nullif(claims->>'email','') is null
+    or nullif(claims->>'email_confirmed_at','') is null then
+    raise exception 'Verified API identity required' using errcode='42501';
+  end if;
+  insert into app_private.users(id,email,email_confirmed_at)
+  values(auth.uid(),lower(claims->>'email'),(claims->>'email_confirmed_at')::timestamptz)
+  on conflict(id) do update set email=excluded.email,email_confirmed_at=excluded.email_confirmed_at
+  where (users.email,users.email_confirmed_at) is distinct from (excluded.email,excluded.email_confirmed_at);
+end $$;
+revoke all on function app_private.sync_user() from public;
+grant usage on schema public,auth,app_private to authenticated;
+grant execute on function auth.uid(),app_private.sync_user() to authenticated;
+create or replace function public.sync_identity() returns void
+language sql security invoker set search_path=pg_catalog as $$ select app_private.sync_user() $$;
+revoke all on function public.sync_identity() from public;
+grant execute on function public.sync_identity() to authenticated;
 create extension if not exists pgcrypto;
 
 create table public.schools (
   id uuid primary key default gen_random_uuid(),
   name text not null,
-  logo_url text,
   location text,
   weekday_closed boolean,
   weekday_open time,
@@ -33,7 +113,7 @@ create table public.schools (
 );
 create table public.school_memberships (
   school_id uuid not null references public.schools(id) on delete cascade,
-  user_id uuid not null references auth.users(id) on delete cascade,
+  user_id uuid not null references app_private.users(id) on delete cascade,
   role text not null check (role in ('owner','staff')),
   unique(user_id),
   primary key (school_id,user_id)
@@ -88,7 +168,7 @@ begin
   if not exists(select 1 from public.school_memberships where school_id=p_school_id and user_id=auth.uid() and role='owner') then
     raise exception 'School owner required' using errcode='42501';
   end if;
-  select id into staff_id from auth.users where lower(email)=lower(btrim(p_email)) and email_confirmed_at is not null;
+  select id into staff_id from app_private.users where lower(email)=lower(btrim(p_email)) and email_confirmed_at is not null;
   if staff_id is null then raise exception 'Confirmed staff account not found' using errcode='P0002'; end if;
   insert into public.school_memberships(school_id,user_id,role) values(p_school_id,staff_id,'staff')
   on conflict(school_id,user_id) do nothing;
@@ -97,12 +177,6 @@ end $$;
 revoke all on function public.add_school_staff(uuid,text) from public;
 grant execute on function public.add_school_staff(uuid,text) to authenticated;
 
-create table public.requests (
-  school_id uuid not null references public.schools(id), id uuid not null default gen_random_uuid(),
-  name text not null, phone text, interest text, preferred_time text,
-  status text not null default 'Baru', source text, notes text,
-  created_at timestamptz not null default now(), primary key(school_id,id)
-);
 create table public.students (
   school_id uuid not null references public.schools(id), id uuid not null default gen_random_uuid(),
   name text not null, phone text,
@@ -116,24 +190,24 @@ create table public.instructors (
 create table public.vehicles (
   school_id uuid not null references public.schools(id), id uuid not null default gen_random_uuid(),
   name text not null, transmission text not null check(transmission in ('Matic','Manual')),
-  image_url text,
   active boolean not null default true, primary key(school_id,id)
 );
 create table public.packages (
   school_id uuid not null references public.schools(id), id uuid not null default gen_random_uuid(),
-  name text not null, description text, normal_price numeric(10,2) not null check(normal_price >= 0), discount_price numeric(10,2) check(discount_price >= 0), start_discount date, end_discount date, total_sessions integer not null check(total_sessions>0), active boolean not null default true,
-  primary key(school_id,id),
-  constraint packages_discount_complete check (
-    (discount_price is null and start_discount is null and end_discount is null) or
-    (discount_price is not null and start_discount is not null and end_discount is not null)
-  ),
-  constraint packages_discount_lower check(discount_price < normal_price),
-  constraint packages_discount_dates check(end_discount > start_discount)
+  name text not null, description text,
+  normal_price numeric(10,2) not null check(normal_price >= 0 and normal_price <> 'NaN'::numeric),
+  transmission text not null check(transmission in ('Manual','Matic')),
+  session_duration_minutes integer not null check(session_duration_minutes between 1 and 1439),
+  total_sessions integer not null check(total_sessions>0), active boolean not null default true,
+  primary key(school_id,id)
 );
 create table public.student_enrollments (
   school_id uuid not null references public.schools(id), id uuid not null default gen_random_uuid(),
   student_id uuid not null, package_id uuid not null,
   package_name text not null, total_sessions integer not null check(total_sessions>0),
+  agreed_price numeric(10,2) not null check(agreed_price >= 0 and agreed_price <> 'NaN'::numeric),
+  transmission text not null check(transmission in ('Manual','Matic')),
+  session_duration_minutes integer not null check(session_duration_minutes between 1 and 1439),
   status text not null default 'Aktif' check(status in ('Aktif','Selesai','Dibatalkan')),
   enrolled_at timestamptz not null default now(), primary key(school_id,id),
   unique(school_id,student_id,id),
@@ -285,7 +359,7 @@ create policy membership_read on public.school_memberships for select using (pub
 -- Schools and memberships are changed only through their authorized functions.
 
 do $$ declare table_name text; begin
-  foreach table_name in array array['requests','students','instructors','vehicles','packages','student_enrollments','sessions'] loop
+  foreach table_name in array array['students','instructors','vehicles','packages','student_enrollments','sessions'] loop
     execute format('alter table public.%I enable row level security',table_name);
     execute format('create policy tenant_read on public.%I for select using (public.can_use_school(school_id))',table_name);
     execute format('create policy tenant_insert on public.%I for insert with check (public.can_use_school(school_id))',table_name);
@@ -297,7 +371,7 @@ end $$;
 create policy instructor_delete on public.instructors for delete using (public.can_use_school(school_id));
 create policy vehicle_delete on public.vehicles for delete using (public.can_use_school(school_id));
 
--- Enrollment allowance is copied from the package by the database, never trusted from the browser.
+-- Purchase terms are copied together from one package version, never trusted from the browser.
 drop policy tenant_insert on public.student_enrollments;
 drop policy tenant_update on public.student_enrollments;
 create function public.create_student_enrollment(p_school_id uuid,p_student_id uuid,p_package_id uuid)
@@ -310,8 +384,10 @@ begin
   end if;
   select * into package_row from public.packages where school_id=p_school_id and id=p_package_id and active;
   if package_row.id is null then raise exception 'Active package required' using errcode='22023'; end if;
-  insert into public.student_enrollments(school_id,student_id,package_id,package_name,total_sessions)
-  values(p_school_id,p_student_id,p_package_id,package_row.name,package_row.total_sessions) returning id into new_id;
+  insert into public.student_enrollments(school_id,student_id,package_id,package_name,total_sessions,agreed_price,transmission,session_duration_minutes)
+  values(p_school_id,p_student_id,p_package_id,package_row.name,package_row.total_sessions,
+    package_row.normal_price,
+    package_row.transmission,package_row.session_duration_minutes) returning id into new_id;
   return new_id;
 end $$;
 revoke all on function public.create_student_enrollment(uuid,uuid,uuid) from public;
@@ -327,6 +403,7 @@ create function public.save_school_session(
   p_date date, p_start time, p_end time, p_transmission text, p_status text
 ) returns uuid language plpgsql security definer set search_path=public as $$
 declare result_id uuid; instructor_row public.instructors%rowtype; vehicle_row public.vehicles%rowtype;
+  enrollment_row public.student_enrollments%rowtype;
 begin
   perform pg_advisory_xact_lock(hashtextextended(p_school_id::text,0));
   perform public.require_school_setup(p_school_id);
@@ -336,13 +413,21 @@ begin
     return result_id;
   end if;
   if p_start >= p_end then raise exception 'End must be after start' using errcode='22023'; end if;
-  if not exists(select 1 from public.student_enrollments e where e.school_id=p_school_id and e.id=p_enrollment_id and e.student_id=p_student_id and e.status='Aktif') then
+  select * into enrollment_row from public.student_enrollments
+    where school_id=p_school_id and id=p_enrollment_id and student_id=p_student_id and status='Aktif';
+  if enrollment_row.id is null then
     raise exception 'Active enrollment required' using errcode='22023';
+  end if;
+  if p_transmission is distinct from enrollment_row.transmission then
+    raise exception 'Session transmission must match enrollment' using errcode='23514';
+  end if;
+  if (p_end-p_start) is distinct from make_interval(mins=>enrollment_row.session_duration_minutes) then
+    raise exception 'Session duration must match enrollment' using errcode='23514';
   end if;
   if p_status not in ('Dibatalkan','Tidak hadir') and
     (select count(*) from public.sessions s where s.school_id=p_school_id and s.enrollment_id=p_enrollment_id
       and s.id is distinct from p_id and s.status not in ('Dibatalkan','Tidak hadir')) >=
-    (select total_sessions from public.student_enrollments where school_id=p_school_id and id=p_enrollment_id) then
+    enrollment_row.total_sessions then
     raise exception 'Package session allowance exhausted' using errcode='23514';
   end if;
   select * into instructor_row from public.instructors where school_id=p_school_id and id=p_instructor_id and active;
@@ -381,9 +466,9 @@ begin
     not exists(select 1 from public.school_memberships where school_id=p_school_id and user_id=auth.uid() and role='owner') then
     raise exception 'Demo school owner required' using errcode='42501';
   end if;
-  insert into public.packages(school_id,id,name,normal_price,total_sessions) values
-    (p_school_id,'00000000-0000-0000-0000-000000000101','Paket Matic Contoh',400000,4),
-    (p_school_id,'00000000-0000-0000-0000-000000000102','Paket Manual Contoh',600000,6)
+  insert into public.packages(school_id,id,name,total_sessions,normal_price,transmission,session_duration_minutes) values
+    (p_school_id,'00000000-0000-0000-0000-000000000101','Paket Matic Contoh',4,600000,'Matic',60),
+    (p_school_id,'00000000-0000-0000-0000-000000000102','Paket Manual Contoh',6,800000,'Manual',60)
     on conflict do nothing;
   insert into public.students(school_id,id,name,status) values
     (p_school_id,'00000000-0000-0000-0000-000000000201','Murid Contoh A','Aktif'),
@@ -397,9 +482,9 @@ begin
     (p_school_id,'00000000-0000-0000-0000-000000000401','Mobil Matic Contoh','Matic'),
     (p_school_id,'00000000-0000-0000-0000-000000000402','Mobil Manual Contoh','Manual')
     on conflict do nothing;
-  insert into public.student_enrollments(school_id,id,student_id,package_id,package_name,total_sessions) values
-    (p_school_id,'00000000-0000-0000-0000-000000000501','00000000-0000-0000-0000-000000000201','00000000-0000-0000-0000-000000000101','Paket Matic Contoh',4),
-    (p_school_id,'00000000-0000-0000-0000-000000000502','00000000-0000-0000-0000-000000000202','00000000-0000-0000-0000-000000000102','Paket Manual Contoh',6)
+  insert into public.student_enrollments(school_id,id,student_id,package_id,package_name,total_sessions,agreed_price,transmission,session_duration_minutes) values
+    (p_school_id,'00000000-0000-0000-0000-000000000501','00000000-0000-0000-0000-000000000201','00000000-0000-0000-0000-000000000101','Paket Matic Contoh',4,600000,'Matic',60),
+    (p_school_id,'00000000-0000-0000-0000-000000000502','00000000-0000-0000-0000-000000000202','00000000-0000-0000-0000-000000000102','Paket Manual Contoh',6,800000,'Manual',60)
     on conflict do nothing;
   insert into public.sessions(school_id,id,student_id,enrollment_id,instructor_id,vehicle_id,session_date,start_time,end_time,transmission,status) values
     (p_school_id,'00000000-0000-0000-0000-000000000601','00000000-0000-0000-0000-000000000201','00000000-0000-0000-0000-000000000501','00000000-0000-0000-0000-000000000301','00000000-0000-0000-0000-000000000401',(now() at time zone 'Asia/Makassar')::date+1,'09:00','10:00','Matic','Menunggu konfirmasi')
@@ -407,3 +492,8 @@ begin
 end $$;
 revoke all on function public.seed_demo_school(uuid) from public;
 grant execute on function public.seed_demo_school(uuid) to authenticated;
+
+grant select on public.schools,public.school_memberships to authenticated;
+grant select,insert,update on public.students,public.instructors,public.vehicles,public.packages to authenticated;
+grant select on public.student_enrollments,public.sessions to authenticated;
+grant delete on public.instructors,public.vehicles to authenticated;

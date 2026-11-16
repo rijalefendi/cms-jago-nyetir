@@ -2,51 +2,73 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { ApiError, request, supabase, type Api, type School } from './auth';
 import { LiveApp } from './live';
+import { DashboardShell } from './DashboardShell';
 import { authFormError, type AuthFormError } from './auth-errors';
+import { PasswordRecovery } from './PasswordRecovery';
+import { LoginLayout } from './LoginLayout';
 import { TimePicker } from './TimePicker';
+import { Invitations } from './Invitations';
 
-const menu = ['Murid', 'Paket', 'Instruktur', 'Mobil', 'Jadwal'];
 const message = (error: unknown) => error instanceof Error ? error.message : 'Terjadi kesalahan. Silakan coba lagi.';
+const pageSlugs: Record<string, string> = { home: 'beranda', students: 'murid', sessions: 'jadwal', instructors: 'instruktur', vehicles: 'mobil', packages: 'paket', settings: 'pengaturan', invitations: 'undangan-staff', inbox: 'inbox-undangan' };
+const pageFromUrl = () => Object.keys(pageSlugs).find(page => location.pathname.match(/^(?:\/schools\/[^/]+)?\/dashboard\/([^/]+)\/?$/)?.[1] === pageSlugs[page]) || 'home';
 
 export function AuthApp({ preview }: { preview?: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [restoring, setRestoring] = useState(true);
   const [error, setError] = useState('');
+  const [authPath, setAuthPath] = useState(location.pathname);
+  const [recovery, setRecovery] = useState(() => location.pathname === '/lupa-password' && new URLSearchParams(location.search).get('reset') === '1');
   const [attempt, setAttempt] = useState(0);
+  function navigateAuth(path: string) { history.pushState(null, '', path); setAuthPath(path); setRecovery(false); setError(''); }
+  useEffect(() => {
+    const pop = () => { setAuthPath(location.pathname); setRecovery(location.pathname === '/lupa-password' && new URLSearchParams(location.search).get('reset') === '1'); };
+    window.addEventListener('popstate', pop);
+    return () => window.removeEventListener('popstate', pop);
+  }, []);
   useEffect(() => {
     if (!supabase) { setRestoring(false); return; }
     let active = true;
     let changed = false;
     const callback = location.pathname === '/auth/callback';
     const params = new URLSearchParams(location.hash.slice(1));
-    const invalid = callback && (params.has('error') || new URLSearchParams(location.search).has('error'));
+    const recoveryLink = location.pathname === '/lupa-password' && new URLSearchParams(location.search).get('reset') === '1';
+    const invalid = (callback || recoveryLink) && (params.has('error') || new URLSearchParams(location.search).has('error'));
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, next) => {
       changed = true;
+      if (_event === 'PASSWORD_RECOVERY' && active) { setRecovery(true); setAuthPath('/lupa-password'); history.replaceState(null, '', '/lupa-password?reset=1'); }
       if (active && !invalid) setSession(next);
     });
     setRestoring(true);
     supabase.auth.getSession().then(({ data, error }) => {
       if (!active) return;
       if (!changed && !invalid) setSession(data.session);
-      if (invalid || (callback && (error || !data.session))) setError('Link verifikasi tidak valid atau kedaluwarsa. Silakan masuk atau daftar kembali.');
+      if (recoveryLink && (invalid || error || !data.session)) setError('Tautan pemulihan tidak valid atau kedaluwarsa.');
+      else if (invalid || (callback && (error || !data.session))) setError('Link verifikasi tidak valid atau kedaluwarsa. Silakan masuk atau daftar kembali.');
       else if (error) setError('Sesi gagal dipulihkan. Coba lagi atau masuk ulang.');
     }).catch(() => { if (active) setError('Sesi gagal dipulihkan. Coba lagi atau masuk ulang.'); })
       .finally(() => {
         if (!active) return;
         if (callback) history.replaceState(null, '', '/');
+        if (recoveryLink) history.replaceState(null, '', '/lupa-password?reset=1');
         setRestoring(false);
       });
     return () => { active = false; subscription.unsubscribe(); };
   }, [attempt]);
 
+  useEffect(() => {
+    if (!restoring && session && ['/login', '/regis'].includes(location.pathname)) history.replaceState(null, '', '/dashboard/beranda');
+  }, [restoring, session]);
+
   if (!supabase) return <main className="auth-wrap"><p role="alert">Konfigurasi auth belum lengkap. Isi URL dan publishable key Supabase.</p></main>;
   if (restoring) return <main className="auth-wrap"><p role="status">Memulihkan sesi…</p></main>;
-  if (!session) return <Login error={error} clearError={() => setError('')} retry={() => setAttempt(n => n + 1)} />;
+  if (authPath === '/lupa-password' || recovery) return <PasswordRecovery key={String(recovery)} reset={recovery} validSession={Boolean(session)} restoreError={error} onNavigate={navigateAuth} />;
+  if (!session) return <Login onForgot={() => navigateAuth('/lupa-password')} error={error} clearError={() => setError('')} retry={() => setAttempt(n => n + 1)} />;
   return preview ?? <SchoolWorkspace key={session.user.id} userId={session.user.id} />;
 }
 
-function Login({ error: restoreError, clearError, retry }: { error: string; clearError: () => void; retry: () => void }) {
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
+function Login({ error: restoreError, clearError, retry, onForgot }: { onForgot: () => void; error: string; clearError: () => void; retry: () => void }) {
+  const [mode, setMode] = useState<'login' | 'signup'>(() => location.pathname === '/regis' ? 'signup' : 'login');
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
   const [error, setError] = useState<AuthFormError | null>(null);
@@ -62,6 +84,22 @@ function Login({ error: restoreError, clearError, retry }: { error: string; clea
     const field = Object.keys(error?.fields || {})[0];
     if (!busy && field) (formRef.current?.elements.namedItem(field) as HTMLInputElement | null)?.focus();
   }, [error, busy]);
+  function changeMode(next: 'login' | 'signup') {
+    setMode(next); setSent(false); setError(null); setClientFields({}); setShowPassword(false); clearError();
+  }
+  useEffect(() => {
+    if (location.pathname === '/lupa-password') return;
+    const path = location.pathname === '/regis' ? '/regis' : '/login';
+    if (location.pathname + location.search + location.hash !== path) history.replaceState(null, '', path);
+    const pop = () => {
+      const next = location.pathname === '/regis' ? 'signup' : 'login';
+      if (location.pathname === '/lupa-password') return;
+      if (location.pathname !== '/regis' && location.pathname !== '/login') history.replaceState(null, '', '/login');
+      changeMode(next);
+    };
+    window.addEventListener('popstate', pop);
+    return () => window.removeEventListener('popstate', pop);
+  }, []);
   function validate(input: HTMLInputElement) {
     if (input.name === 'email') {
       if (!input.value.trim()) return 'Email wajib diisi.';
@@ -108,13 +146,13 @@ function Login({ error: restoreError, clearError, retry }: { error: string; clea
     } catch (error) { setError(authFormError(error, mode, credentials)); }
     finally { pending.current = false; setBusy(false); }
   }
-  return <main className="auth-wrap"><div className="auth-wordmark">Jagonyetir<span aria-hidden="true">.</span></div><section className="panel panel-pad auth-panel">
+  return <LoginLayout><section className="panel panel-pad auth-panel">
     <h1>{sent ? 'Verifikasi email' : mode === 'login' ? 'Masuk' : 'Daftar akun'}</h1>
     <p>{sent ? 'Periksa email untuk memverifikasi akun. Setelah terverifikasi, kembali untuk masuk.' : 'Kelola operasional sekolah mengemudi Anda.'}</p>
     {!sent && <form ref={formRef} noValidate onSubmit={submit} onBlur={blur} onChange={change} className="auth-form" aria-busy={busy}>
       <label className="form-field">Email<input name="email" type="email" autoComplete="email" required disabled={busy} aria-invalid={Boolean(fields.email)} aria-describedby={fields.email ? 'auth-email-error' : undefined} />{fields.email && <small id="auth-email-error" className="auth-field-error" role="alert">{fields.email}</small>}</label>
       <div className="form-field">
-        <label htmlFor="auth-password">Kata sandi</label>
+        <div className="auth-password-label"><label htmlFor="auth-password">Kata sandi</label>{mode === 'login' && <a href="/lupa-password" className="inline-link" aria-disabled={busy} onClick={e => { e.preventDefault(); if (!busy) onForgot(); }}>Lupa password?</a>}</div>
         <div className="auth-password-control">
           <input id="auth-password" name="password" type={showPassword ? 'text' : 'password'} autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} minLength={mode === 'signup' ? 8 : undefined} required disabled={busy} aria-invalid={Boolean(fields.password)} aria-describedby={[mode === 'signup' ? 'auth-password-hint' : '', fields.password ? 'auth-password-error' : ''].filter(Boolean).join(' ') || undefined} />
           <button type="button" className="auth-password-toggle" aria-label={showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'} aria-controls="auth-password" aria-pressed={showPassword} disabled={busy} onClick={() => setShowPassword(value => !value)}>
@@ -130,8 +168,8 @@ function Login({ error: restoreError, clearError, retry }: { error: string; clea
       {formError && <div className="notice auth-error" role="alert"><p>{formError}</p>{error?.code && <small>Kode: {error.code}{error.status !== undefined && error.status > 0 ? ` · HTTP ${error.status}` : ''}</small>}{restoreError && <button type="button" className="btn btn-quiet" onClick={retry}>Coba lagi</button>}</div>}
       <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? 'Memproses…' : mode === 'login' ? 'Masuk' : 'Daftar akun'}</button>
     </form>}
-    <p className="auth-switch">{!sent && (mode === 'login' ? 'Belum punya akun? ' : 'Sudah punya akun? ')}<button className="inline-link" disabled={busy} data-auth-mode={mode === 'login' ? 'signup' : 'login'} onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setSent(false); setError(null); setClientFields({}); setShowPassword(false); clearError(); }}>{mode === 'login' && !sent ? 'Daftar gratis' : sent ? 'Kembali ke Masuk' : 'Masuk'}</button></p>
-  </section></main>;
+    <p className="auth-switch">{!sent && (mode === 'login' ? 'Belum punya akun? ' : 'Sudah punya akun? ')}<button className="inline-link" disabled={busy} data-auth-mode={mode === 'login' ? 'signup' : 'login'} onClick={() => { const next = mode === 'login' && !sent ? 'signup' : 'login'; history.pushState(null, '', next === 'signup' ? '/regis' : '/login'); changeMode(next); }}>{mode === 'login' && !sent ? 'Daftar gratis' : sent ? 'Kembali ke Masuk' : 'Masuk'}</button></p>
+  </section></LoginLayout>;
 }
 
 function SchoolWorkspace({ userId }: { userId: string }) {
@@ -139,7 +177,9 @@ function SchoolWorkspace({ userId }: { userId: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [unauthorized, setUnauthorized] = useState(false);
-  const [settings, setSettings] = useState(false);
+  const [settings, setSettings] = useState(() => pageFromUrl() === 'settings');
+  const [operationPage, setOperationPage] = useState(() => pageFromUrl() === 'settings' ? 'students' : pageFromUrl());
+  const [showCreate, setShowCreate] = useState(false);
   const [saved, setSaved] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -151,6 +191,12 @@ function SchoolWorkspace({ userId }: { userId: string }) {
         setSchool(current => current ? { ...current, setup_complete: false } : current);
         setSettings(true);
       }
+      if (error instanceof ApiError && error.status === 403 && method === 'PUT') {
+        try {
+          const schools = await request(userId, '/schools');
+          if (Array.isArray(schools) && schools.length === 1 && schools[0].id) setSchool(schools[0]);
+        } catch { /* Keep the form and the original access error available. */ }
+      }
       throw error;
     }
   }, [userId]);
@@ -161,12 +207,36 @@ function SchoolWorkspace({ userId }: { userId: string }) {
       const schools = await request(userId, '/schools', 'GET', undefined, true) as School[];
       if (!Array.isArray(schools) || schools.length > 1 || schools.some(s => !s.id || typeof s.setup_complete !== 'boolean')) throw Error('Respons sekolah tidak valid. Silakan coba lagi.');
       if (current === serial.current) { setSchool(schools[0] || null); setUnauthorized(false); }
+      return schools[0] || null;
     } catch (error) {
       if (current !== serial.current) return;
       setError(message(error)); setUnauthorized(error instanceof ApiError && error.status === 401);
     } finally { if (current === serial.current) setLoading(false); }
   }, [userId]);
   useEffect(() => { void load(); return () => { serial.current++; }; }, [load, attempt]);
+  useEffect(() => {
+    if (!loading && !error && school?.setup_complete && (location.pathname === '/' || /^\/schools\/[^/]+\/dashboard\//.test(location.pathname))) {
+      history.replaceState(null, '', `/dashboard/${pageSlugs[settings ? 'settings' : operationPage]}`);
+    }
+  }, [loading, error, school, settings, operationPage]);
+  useEffect(() => {
+    const onPopState = () => {
+      const page = pageFromUrl();
+      setSettings(page === 'settings');
+      if (page !== 'settings') setOperationPage(page);
+      setSaved(false);
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+  function navigate(page: string) {
+    if (!pageSlugs[page] || (page === 'invitations' && (school?.role !== 'owner' || !school.setup_complete))) return;
+    const path = `/dashboard/${pageSlugs[page]}`;
+    if (location.pathname !== path) history.pushState(null, '', path);
+    setSettings(page === 'settings');
+    if (page !== 'settings') setOperationPage(page);
+    setSaved(false);
+  }
   async function logout() {
     if (loggingOut) return;
     setLoggingOut(true);
@@ -177,13 +247,17 @@ function SchoolWorkspace({ userId }: { userId: string }) {
     finally { setLoggingOut(false); }
   }
   const locked = !school?.setup_complete;
-  return <main className="live-wrap"><header className="live-header"><h1>Jagonyetir</h1><button className="btn btn-quiet" disabled={loggingOut} onClick={logout}>{loggingOut ? 'Memproses…' : 'Keluar'}</button></header>
-    {loading ? <p role="status">Memuat akses sekolah…</p> : error ? <section className="panel panel-pad"><p role="alert">{error}</p><button className="btn btn-primary" onClick={load}>Coba lagi</button>{unauthorized && <button className="btn btn-quiet" onClick={logout}>Masuk ulang</button>}</section>
-      : !locked && !settings ? <><button className="inline-link" onClick={() => setSettings(true)}>Pengaturan Sekolah</button><LiveApp school={school!} api={api} /></>
-      : <>{locked ? <><p id="setup-reason" className="notice">Lengkapi data sekolah terlebih dahulu.</p><nav className="live-nav" aria-label="Menu operasional">{menu.map(label => <button key={label} className="btn btn-quiet" disabled aria-describedby="setup-reason">{label}</button>)}</nav></> : <button className="inline-link" onClick={() => { setSettings(false); setSaved(false); }}>Kembali ke operasional</button>}
-        <SchoolProfile key={school?.id || 'new'} school={school} api={api} saved={saved} onSaved={async () => { setSettings(true); setSaved(true); await load(); }} retryAccess={() => setAttempt(n => n + 1)} />
+  const invitationPage = operationPage === 'inbox' || operationPage === 'invitations';
+  if (!loading && !error && ((!school && !showCreate) || (!settings && invitationPage))) return <DashboardShell school={school} page={school ? operationPage : 'inbox'} locked={locked} loggingOut={loggingOut} onLogout={logout} onNavigate={navigate}><Invitations api={api} schoolId={school && operationPage === 'invitations' && school.role === 'owner' && school.setup_complete ? school.id : undefined} onAccepted={async () => { const result = await load(); if (result?.role === 'staff') { setSettings(false); setOperationPage('home'); history.replaceState(null, '', '/dashboard/beranda'); } }} />{!school && <button className="btn btn-quiet" onClick={() => { setShowCreate(true); setSettings(true); }}>Buat sekolah</button>}</DashboardShell>;
+  if (!loading && !error && !locked && !settings) return <LiveApp school={school!} api={api} initialPage={operationPage} onNavigate={navigate} loggingOut={loggingOut} onLogout={logout} />;
+  return <DashboardShell school={school} page="settings" locked={loading || !!error || locked} loggingOut={loggingOut} onLogout={logout} onNavigate={navigate}>
+    {loading ? <p id="setup-reason" role="status">Memuat akses sekolah...</p> : error ? <section className="panel panel-pad"><p id="setup-reason" role="alert">{error}</p><button className="btn btn-primary" onClick={load}>Coba lagi</button>{unauthorized && <button className="btn btn-quiet" onClick={logout}>Masuk ulang</button>}</section>
+      : <><div className="page-heading"><div><div className="eyebrow">PENGATURAN</div><h1>Pengaturan Sekolah</h1><p className="page-sub">{school ? 'Profil dan jam operasional sekolah dalam WITA.' : 'Buat sekolah dengan mengisi profil dan jam operasional (WITA).'}</p></div></div>
+        {!school && <button className="btn btn-quiet" onClick={() => setShowCreate(false)}>Lihat inbox undangan</button>}
+        {locked ? <p id="setup-reason" className="notice">Lengkapi data sekolah terlebih dahulu.</p> : <button className="inline-link" onClick={() => navigate(operationPage)}>Kembali ke operasional</button>}
+        <SchoolProfile showHeading={false} key={school?.id || 'new'} school={school} api={api} saved={saved} onSaved={async () => { setSettings(true); setSaved(true); await load(); }} retryAccess={() => setAttempt(n => n + 1)} />
       </>}
-  </main>;
+  </DashboardShell>;
 }
 
 export function SchoolProfile({ school, api, saved, onSaved, retryAccess, showHeading = true, successMessage = 'Perubahan berhasil disimpan.' }: { school: School | null; api: Api; saved: boolean; onSaved: () => Promise<void>; retryAccess: () => void; showHeading?: boolean; successMessage?: string }) {
@@ -258,7 +332,7 @@ export function SchoolProfile({ school, api, saved, onSaved, retryAccess, showHe
     {showHeading && <><h2>Pengaturan Sekolah</h2><p>{school ? 'Semua jam dalam WITA (Asia/Makassar).' : 'Buat sekolah dengan mengisi profil dan jam operasional (WITA).'}</p></>}
     {school && <p role="status" className="notice">{school.setup_complete ? 'Profil lengkap.' : 'Profil belum lengkap. Isi semua kolom wajib.'}</p>}
     {saved && <p role="status">{successMessage}</p>}
-    {school && !canSave && <p className="notice">Owner perlu melengkapi data sekolah. {school.role === 'staff' ? 'Anda hanya dapat membaca pengaturan.' : 'Role akun belum tersedia dari server; akses simpan belum dapat diverifikasi.'}{!school.role && <button className="btn btn-quiet" onClick={retryAccess}>Coba lagi</button>}</p>}
+    {school && !canSave && <p className="notice">{!school.setup_complete && 'Owner perlu melengkapi data sekolah. '}{school.role === 'staff' ? 'Anda hanya dapat membaca pengaturan.' : 'Role akun belum tersedia dari server; akses simpan belum dapat diverifikasi.'}{!school.role && <button className="btn btn-quiet" onClick={retryAccess}>Coba lagi</button>}</p>}
     {error && <p role="alert" className="notice form-feedback">{error}</p>}
     {!profile ? error ? <button className="btn btn-quiet" onClick={() => setAttempt(n => n + 1)}>Coba lagi</button> : <p role="status">Memuat profil sekolah…</p>
       : <form className="school-profile" noValidate onSubmit={save} aria-busy={busy}

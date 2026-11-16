@@ -96,6 +96,34 @@ riset, bukan bukti tidak ada kompetitor.
 5. **Internal-only adalah pilihan fokus, bukan klaim keunikan.**
    Pembanding juga dapat melayani booking manual tanpa booking publik.
 
+### Alur admin menambahkan paket ke murid
+
+Riset tambahan 14 November 2026: sumber di atas belum menjelaskan langkah
+admin saat pembuatan murid dan enrollment. Panduan publik berikut memberi
+contoh alur, tetapi belum diverifikasi dengan mencoba aplikasinya.
+
+| Produk dan sumber | Alur yang didokumentasikan | Batas temuan |
+| --- | --- | --- |
+| [AutoviaTest](https://school.autoviatest.com/guide/schools) | Admin membuat murid di Students; untuk assign paket, buka profil murid → Packages → Assign Package, lalu pilih paket dan tanggal mulai. Paket disiapkan sebelumnya. | Panduan menyarankan paket dapat di-assign segera setelah murid ditambahkan, tetapi tidak menunjukkan pilihan paket di form Add Student. |
+| [Software for Driving School](https://softwarefordrivingschool.com/manual/enrollments/) | Buat murid dan paket terlebih dahulu, lalu buka Enrollments untuk membuat atau meninjau enrollment. | Form enrollment publik dapat membuat keduanya dalam satu alur, tetapi itu alur pendaftaran publik, bukan bukti form admin melakukannya. |
+| [Pinkapple ERP](https://docs.pinkapple-erp.com/guide/driving/learner-enrollment-to-certificate.html) | Daftarkan atau pilih murid di Students, kemudian buat enrollment di menu Enrollments dengan memilih murid dan produk. | Contoh ERP dengan cakupan lebih luas; bukan bukti menu terpisah dibutuhkan untuk MVP. |
+| [DriversEdPro](https://driversedpro.com/help/enroll-a-student) | Admin membuka Students → Add Student; pendaftaran publik memilih kelas dan membuat data murid dalam satu alur. | Panduan tidak menjelaskan apakah form admin memilih kelas saat membuat murid; kelas tidak selalu setara paket sesi. |
+
+**Implikasi untuk Jago Nyetir:** pemisahan data murid dan enrollment adalah
+pola yang ditemukan, tetapi tidak membuktikan staff harus berpindah layar.
+UI live saat ini membuat murid terlebih dahulu, lalu menambahkan paket dari
+detail murid. Hipotesis yang layak diuji: setelah simpan murid, tawarkan
+langsung pilihan tambah paket atau nanti; pertahankan penambahan paket dari
+detail untuk murid lama. Jika pilot hampir selalu memilih paket saat daftar,
+uji pilihan paket opsional dalam alur pembuatan murid. Jangan membuat menu
+enrollment terpisah hanya karena ERP lain memilikinya.
+
+Jika penyimpanan murid dan paket tetap dua operasi, kegagalan operasi kedua
+harus menjelaskan bahwa murid sudah tersimpan dan menyediakan cara melanjutkan
+tanpa membuat duplikat. Enrollment mencatat hak sesi, bukan bukti pembayaran.
+Validasi dengan staff: apakah paket biasanya sudah dipilih saat murid dicatat,
+apakah murid lama membeli paket lagi, dan kapan jadwal dibuat.
+
 ## 4. Prioritas MVP dan mana yang sudah ada di repo
 
 ### Ringkasan enam prioritas
@@ -148,6 +176,8 @@ Referensi memakai lokasi saat inspeksi; nomor baris dapat bergeser.
   `src/legacy.js:74`. Menu live di `src/live.tsx:11`.
 - **Responsif umum:** media queries di `src/style.css:263–267`;
   keberadaan CSS tidak membuktikan alur khusus instruktur nyaman di HP.
+
+Catatan migrasi: referensi `src/legacy.js` di inspeksi historis di atas sudah digantikan oleh `src/DemoDashboard.tsx` dan `src/StudentsPage.tsx`; berkas legacy telah dihapus.
 
 ### Tambahan yang sudah ada, tetapi bukan alasan memperlebar MVP
 

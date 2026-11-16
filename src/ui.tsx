@@ -41,7 +41,7 @@ export function Button({ variant = 'quiet', sm, icon, type = 'button', children,
 
 const badgeTones: Record<string, string> = {
   'Baru': 'warning', 'Menunggu keputusan': 'warning', 'Menunggu konfirmasi': 'warning',
-  'Dihubungi': 'info', 'Aktif': 'info', 'Dikonversi': 'success', 'Terkonfirmasi': 'success',
+  'Diterima': 'success', 'Dihubungi': 'info', 'Aktif': 'info', 'Dikonversi': 'success', 'Terkonfirmasi': 'success',
   'Selesai': 'success', 'Tidak lanjut': 'neutral', 'Batal': 'danger', 'Dibatalkan': 'danger', 'Tidak hadir': 'danger',
 };
 export const Badge = ({ status }: { status: string }) => (
@@ -170,9 +170,9 @@ export const PageHeading = ({ label, description, actions, eyebrow = 'OPERASIONA
   </div>
 );
 
-export const EmptyState = ({ title, description = 'Belum ada data yang sesuai. Periksa filter atau tambahkan data baru untuk mencoba prototipe.', action }: { title: string; description?: string; action?: React.ReactNode }) => (
+export const EmptyState = ({ title, description = 'Belum ada data yang sesuai. Periksa filter atau tambahkan data baru untuk mencoba prototipe.', action, icon = 'clipboard' }: { title: string; description?: string; action?: React.ReactNode; icon?: string }) => (
   <div className="empty">
-    <span className="empty-illustration"><Icon name="clipboard" extra="lg" /></span>
+    <span className="empty-illustration"><Icon name={icon} extra="lg" /></span>
     <strong>{title}</strong>
     <p>{description}</p>
     {action}

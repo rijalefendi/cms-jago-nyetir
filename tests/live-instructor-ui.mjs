@@ -1,5 +1,39 @@
 import assert from 'node:assert/strict';
-import { fixture, session, school } from './auth-fixture.mjs';
+import { fixture, session, school, response, waitFor } from './auth-fixture.mjs';
+
+const emptyLists = fixture({ initial: session(), fetch: async url => {
+  if (url === '/api/v1/schools') return response([school]);
+  return response(url.includes('/students?') || url.includes('/instructors?') ? { items: [], total: 0, page: 1, pageSize: 10 } : []);
+} });
+await waitFor(() => emptyLists.document.querySelector('#sidebar [data-live-page="students"]:not(:disabled)'));
+for (const [page, icon] of [['students', 'student'], ['instructors', 'teacher'], ['vehicles', 'car'], ['packages', 'package']]) {
+  emptyLists.document.querySelector(`#sidebar [data-live-page="${page}"]`)?.click();
+  await waitFor(() => emptyLists.document.querySelector(`.${page === 'students' ? 'student' : page === 'instructors' ? 'instructor' : page === 'vehicles' ? 'car' : 'package'}-panel .empty use`));
+  assert.equal(emptyLists.document.querySelector('.empty use').getAttribute('href'), `#i-${icon}`);
+  const input = emptyLists.document.querySelector('.instructor-toolbar input');
+  assert.equal(input.value, '', `search for ${page} must start empty`);
+  Object.getOwnPropertyDescriptor(emptyLists.dom.window.HTMLInputElement.prototype, 'value').set.call(input, 'tidak ada');
+  input.dispatchEvent(new emptyLists.dom.window.Event('input', { bubbles: true }));
+}
+emptyLists.close();
+
+const routing = fixture({ initial: session(), url: 'http://localhost/dashboard/instruktur' });
+await waitFor(() => routing.document.querySelector('.live-nav [data-live-page="instructors"][aria-current="page"]'));
+routing.document.querySelector('.live-nav [data-live-page="vehicles"]').click();
+await waitFor(() => routing.document.querySelector('.live-nav [data-live-page="vehicles"][aria-current="page"]'));
+assert.equal(routing.dom.window.location.pathname, '/dashboard/mobil');
+routing.dom.window.history.back();
+await waitFor(() => routing.document.querySelector('.live-nav [data-live-page="instructors"][aria-current="page"]'));
+assert.equal(routing.dom.window.location.pathname, '/dashboard/instruktur');
+routing.document.querySelector('#sidebar [data-live-page="settings"]').click();
+await waitFor(() => routing.document.querySelector('#sidebar [data-live-page="settings"][aria-current="page"]'));
+assert.equal(routing.dom.window.location.pathname, '/dashboard/pengaturan');
+routing.close();
+
+const initialRoute = fixture({ initial: session() });
+await waitFor(() => initialRoute.document.querySelector('.live-nav [data-live-page="home"][aria-current="page"]'));
+await waitFor(() => initialRoute.dom.window.location.pathname === '/dashboard/beranda');
+initialRoute.close();
 
 const { dom } = fixture({ initial: session() });
 const instructors = [
@@ -29,11 +63,11 @@ dom.window.fetch = async (url, options = {}) => {
     : [];
   return { ok: true, text: async () => JSON.stringify(body) };
 };
-await new Promise(resolve => setTimeout(resolve, 150));
+await waitFor(() => dom.window.document.querySelector('.live-nav [data-live-page="instructors"]:not(:disabled)'));
 const { document, Event, MouseEvent } = dom.window;
 assert.ok(!calls.some(([url]) => url.endsWith('/instructors')));
 const callsBeforeInstructor = calls.length;
-document.querySelectorAll('.live-nav button')[2].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+document.querySelector('.live-nav [data-live-page="instructors"]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
 await new Promise(resolve => setTimeout(resolve, 100));
 assert.equal(document.querySelectorAll('.instructor-table tbody tr').length, 2);
 assert.ok(calls.some(([url]) => url.includes('/instructors?page=1')));
@@ -67,7 +101,7 @@ document.querySelector('[data-testid="confirm-delete-instructor"]').click();
 await new Promise(resolve => setTimeout(resolve, 30));
 assert.ok(document.querySelector('.instructor-action-error[role="alert"]'));
 assert.match(document.querySelector('.instructor-action-error[role="alert"]').textContent, /masih tercatat pada sesi/);
-document.querySelector('.live-instructor-heading button').click();
+document.querySelector('[data-action="add-instructor"]').click();
 await new Promise(resolve => setTimeout(resolve, 20));
 assert.ok(!document.querySelector('.instructor-action-error'));
 const addForm = document.querySelector('form[data-form="save-instructor"]');
@@ -95,6 +129,7 @@ rejectSave = false;
 addForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
 await new Promise(resolve => setTimeout(resolve, 30));
 assert.ok(calls.some(([url, method]) => url.endsWith('/instructors') && method === 'POST'));
+await waitFor(() => !document.querySelector('[role="dialog"]'));
 for (let i = 0; i < 10; i++) instructors.push({ id: `extra-${i}`, name: `Extra ${i}`, transmission: 'Matic', notes: '', active: true });
 const searchAgain = document.getElementById('liveInstructorSearch');
 const clearSearch = document.querySelector('[data-clear-search="liveInstructorSearch"]');
@@ -106,7 +141,7 @@ assert.equal(document.activeElement, searchAgain);
 await new Promise(resolve => setTimeout(resolve, 350));
 assert.equal(document.querySelectorAll('.instructor-table tbody tr').length, 10);
 document.querySelector('[aria-label="Halaman berikutnya"]').click();
-await new Promise(resolve => setTimeout(resolve, 30));
+await waitFor(() => document.querySelectorAll('.instructor-table tbody tr').length === 2);
 assert.equal(document.querySelectorAll('.instructor-table tbody tr').length, 2);
 assert.ok(calls.some(([url]) => url.includes('/instructors?page=2')));
 document.querySelector('.instructor-table .table-sort').click();
@@ -127,7 +162,7 @@ assert.match(document.querySelector('.instructor-load-error[role="alert"]').text
 document.querySelector('.instructor-load-error button').click();
 await new Promise(resolve => setTimeout(resolve, 30));
 assert.equal(document.querySelectorAll('.instructor-table tbody tr').length, 10);
-document.querySelectorAll('.live-nav button')[3].click();
+document.querySelector('.live-nav [data-live-page="vehicles"]').click();
 await new Promise(resolve => setTimeout(resolve, 40));
 document.querySelector('[data-action="add-car"]').click();
 await new Promise(resolve => setTimeout(resolve, 20));

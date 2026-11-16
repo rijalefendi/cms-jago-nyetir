@@ -1,0 +1,502 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Jago Nyetir API",
+    "version": "1.0.0",
+    "description": "Backend Go/Gin untuk sekolah mengemudi.\n\n## Mulai mencoba\n1. Dokumentasi dan health check bisa dibuka tanpa login.\n2. Login akun tes melalui Supabase Auth (tidak perlu integrasi FE), lalu masukkan access_token pada bagian Authentication sebagai Bearer token. Jangan gunakan anon key, service-role key, refresh token, sebagai token pengguna.\n3. Panggil GET /api/v1/schools untuk mendapatkan school_id. Array kosong berarti akun belum memiliki sekolah lokal; buat sekolah dengan POST /api/v1/schools.\n4. Ganti semua UUID contoh dengan ID data milik sekolahmu. Contoh payload bukan mock server: setiap request dikirim ke backend asli dan penulisan mengubah database.\n\n## Aturan akses\nEmail akun harus terverifikasi. Satu akun hanya memiliki satu membership sekolah (owner/staff). school_id berasal dari URL, bukan body. Settings dapat dibaca saat setup belum lengkap; hanya owner boleh mengubahnya. Semua fitur operasional membutuhkan setup_complete=true. Owner dan staff boleh mengelola operasional; undangan staff dan seed-demo khusus owner. Penerima tanpa membership dapat memakai GET /api/v1/invitations dan POST /api/v1/invitations/{id}/accept.\n\n## Bentuk respons\nDetail resource memakai array satu objek atau [] jika tidak ditemukan, bukan objek tunggal/404. POST CRUD mengembalikan 201 dengan JSON string UUID; PATCH/DELETE mengembalikan 204 tanpa body. RPC create sekolah, Settings, enrollment, dan sesi mengembalikan JSON string UUID. Muat ulang list untuk mendapatkan objek hasil penulisan.\n\n## Jadwal dan error\nTanggal/jam jadwal memakai Asia/Makassar, bukan UTC. Backend/SQL menjaga akses tenant, resource aktif/kompatibel, jam buka, kuota, dan konflik jadwal. Error HTTP umumnya {error}; enam error jadwal/Settings memakai {code,message}; error database lain dipetakan sebagai {code,message,details,hint}. 502 bukan alasan untuk logout otomatis.\n\nToken hanya diperlukan saat mencoba endpoint terlindungi. UI tidak menyimpan token secara persisten. Jangan membagikan token, hasil login, atau screenshot berisi kredensial."
+  },
+  "servers": [{"url": "/", "description": "Backend pada origin yang sama dengan dokumentasi"}],
+  "security": [{"bearerAuth": []}],
+  "tags": [
+    {"name": "Health", "description": "Liveness dan readiness tanpa autentikasi."},
+    {"name": "Schools", "description": "Bootstrap sekolah, role membership, dan pembuatan sekolah."},
+    {"name": "Settings", "description": "Profil dan jam operasional weekday/weekend; hanya owner boleh menulis."},
+    {"name": "Students", "description": "Data siswa, pencarian nama, dan pagination opsional."},
+    {"name": "Instructors", "description": "Instruktur, transmisi yang dapat diajar, dan status aktif."},
+    {"name": "Vehicles", "description": "Mobil latihan dan filter kompatibilitas transmisi."},
+    {"name": "Packages", "description": "Paket latihan dan kuota sesi."},
+    {"name": "Enrollments", "description": "Pendaftaran siswa dengan snapshot nama dan kuota paket."},
+    {"name": "Sessions", "description": "Kalender, penjadwalan, dan pembatalan dalam zona Asia/Makassar."},
+    {"name": "Invitations", "description": "Undangan staff; akses aktif setelah konfirmasi penerima. Pengiriman email belum tersedia."},
+    {"name": "Members", "description": "Daftar anggota sekolah untuk owner."},
+    {"name": "Legacy", "description": "Endpoint lama, bukan flow invitation. Gunakan dengan memahami efek penulisannya."}
+  ],
+  "paths": {
+    "/healthz": {
+      "get": {
+        "tags": ["Health"], "operationId": "liveness", "summary": "Cek proses API",
+        "security": [],
+        "responses": {"200": {"description": "API hidup", "content": {"application/json": {"schema": {"type": "object", "properties": {"status": {"type": "string", "enum": ["alive"]}}}, "example": {"status": "alive"}}}}}
+      }
+    },
+    "/readyz": {
+      "get": {
+        "tags": ["Health"], "operationId": "readiness", "summary": "Cek kesiapan PostgreSQL",
+        "description": "Tidak memanggil Supabase Auth.",
+        "security": [],
+        "responses": {
+          "200": {"description": "Data service siap", "content": {"application/json": {"schema": {"type": "object", "properties": {"status": {"type": "string", "enum": ["ready"]}}}, "example": {"status": "ready"}}}},
+          "503": {"$ref": "#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/api/v1/schools": {
+      "get": {
+        "tags": ["Schools"], "operationId": "listSchools", "summary": "Bootstrap sekolah dan role akun",
+        "description": "Maksimal satu sekolah. [] berarti belum memiliki membership. Request API terautentikasi menyinkronkan identitas terverifikasi ke database lokal; login Supabase sendiri tidak membuat membership. [] mengarah ke onboarding, setup_complete=false ke Settings (staff hanya baca), dan setup_complete=true ke dashboard. Belum ada pemilih sekolah lintas membership.",
+        "responses": {
+          "200": {"description": "Sekolah yang dapat diakses", "content": {"application/json": {"schema": {"type": "array", "maxItems": 1, "items": {"$ref": "#/components/schemas/SchoolSummary"}}, "example": []}}},
+          "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}, "502": {"$ref": "#/components/responses/Unavailable"}
+        }
+      },
+      "post": {
+        "tags": ["Schools"], "operationId": "createSchool", "summary": "Buat sekolah lengkap dan membership owner",
+        "description": "Transaksional. Akun yang sudah menjadi owner/staff sekolah lain tidak dapat membuat sekolah baru.",
+        "requestBody": {"$ref": "#/components/requestBodies/SchoolProfile"},
+        "responses": {
+          "200": {"$ref": "#/components/responses/UUID"}, "400": {"$ref": "#/components/responses/BadRequest"},
+          "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"},
+          "409": {"$ref": "#/components/responses/Conflict"}, "502": {"$ref": "#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/api/v1/schools/{school_id}/home": {
+      "parameters": [{"$ref": "#/components/parameters/SchoolID"}],
+      "get": {
+        "tags": ["Sessions"], "operationId": "getHome", "summary": "Ringkasan dan agenda Beranda",
+        "description": "Menggunakan waktu Asia/Makassar dan satu snapshot database. Sesi hari ini mencakup semua status; sesi lewat berstatus Menunggu konfirmasi atau Terkonfirmasi pada 30 hari sebelumnya sampai hari ini, setelah end_time. Tidak dipaginasi.",
+        "responses": {
+          "200": {"description": "Ringkasan dan daftar sesi", "content": {"application/json": {"schema": {"type": "object", "required": ["date", "today_count", "pending_count", "overdue_count", "today_sessions", "overdue_sessions"], "properties": {
+            "date": {"type": "string", "format": "date"}, "today_count": {"type": "integer"}, "pending_count": {"type": "integer"}, "overdue_count": {"type": "integer"},
+            "today_sessions": {"type": "array", "items": {"$ref": "#/components/schemas/HomeSession"}}, "overdue_sessions": {"type": "array", "items": {"$ref": "#/components/schemas/HomeSession"}}
+          }}}}},
+          "default": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/api/v1/schools/{school_id}/settings": {
+      "parameters": [{"$ref": "#/components/parameters/SchoolID"}],
+      "get": {
+        "tags": ["Settings"], "operationId": "getSettings", "summary": "Baca profil dan jam buka sekolah",
+        "description": "Owner/staff boleh membaca walau setup belum lengkap. Respons jam menggunakan HH:MM:SS.",
+        "responses": {
+          "200": {"description": "Array profil sekolah", "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/SchoolSettings"}}}}},
+          "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}, "502": {"$ref": "#/components/responses/Unavailable"}
+        }
+      },
+      "put": {
+        "tags": ["Settings"], "operationId": "updateSettings", "summary": "Ganti basic info sekolah (owner)",
+        "description": "Kirim seluruh profil, bukan partial update. setup_complete dihitung database. Perubahan jam ditolak jika bertentangan dengan sesi mendatang.",
+        "requestBody": {"$ref": "#/components/requestBodies/SchoolProfile"},
+        "responses": {
+          "200": {"$ref": "#/components/responses/UUID"}, "400": {"$ref": "#/components/responses/BadRequest"},
+          "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"},
+          "409": {"$ref": "#/components/responses/Conflict"}, "502": {"$ref": "#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/api/v1/schools/{school_id}/students": {
+      "parameters": [{"$ref": "#/components/parameters/SchoolID"}],
+      "get": {
+        "tags": ["Students"], "operationId": "listStudents", "summary": "Daftar siswa, pencarian dan pagination opsional",
+        "description": "Tanpa page/page_size: array (dibatasi backend (1000 record)). Jika salah satunya diberikan: objek pagination, default page=1/page_size=10. Search substring nama literal, tidak peka kapital. Urutan name ASC, id ASC.",
+        "parameters": [{"$ref": "#/components/parameters/Search"}, {"$ref": "#/components/parameters/Page"}, {"$ref": "#/components/parameters/PageSize"}, {"$ref": "#/components/parameters/TimestampSort"}, {"$ref": "#/components/parameters/SortDirection"}],
+        "responses": {
+          "200": {"description": "Array atau halaman siswa", "content": {"application/json": {"schema": {"oneOf": [
+            {"type": "array", "items": {"$ref": "#/components/schemas/Student"}},
+            {"allOf": [{"$ref": "#/components/schemas/Page"}, {"type": "object", "properties": {"items": {"type": "array", "items": {"$ref": "#/components/schemas/Student"}}}}]}
+          ]}}}},
+          "default": {"$ref": "#/components/responses/Error"}
+        }
+      },
+      "post": {
+        "tags": ["Students"], "operationId": "createStudent", "summary": "Tambah siswa",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"allOf": [{"$ref": "#/components/schemas/StudentInput"}], "required": ["name"]}, "example": {"name": "Ayu", "phone": "081234567890"}}}},
+        "responses": {"201": {"$ref": "#/components/responses/Created"}, "default": {"$ref": "#/components/responses/Error"}}
+      }
+    },
+    "/api/v1/schools/{school_id}/students/{id}": {
+      "parameters": [{"$ref": "#/components/parameters/SchoolID"}, {"$ref": "#/components/parameters/RecordID"}],
+      "get": {
+        "tags": ["Students"], "operationId": "getStudent", "summary": "Detail siswa (array)",
+        "responses": {"200": {"description": "Satu siswa atau []", "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/Student"}}}}}, "default": {"$ref": "#/components/responses/Error"}}
+      },
+      "patch": {
+        "tags": ["Students"], "operationId": "updateStudent", "summary": "Ubah sebagian field siswa",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/StudentInput"}, "example": {"phone": "081234567891"}}}},
+        "responses": {"204": {"$ref": "#/components/responses/Updated"}, "default": {"$ref": "#/components/responses/Error"}}
+      }
+    },
+    "/api/v1/schools/{school_id}/instructors": {
+      "parameters": [{"$ref": "#/components/parameters/SchoolID"}],
+      "get": {
+        "tags": ["Instructors"], "operationId": "listInstructors", "summary": "Daftar instruktur dan filter kompatibilitas",
+        "description": "Array tanpa page. Berikan page untuk pagination/search dan sort name/transmission/status; sort timestamp juga tersedia tanpa page. Filter transmission juga memasukkan instruktur Matic & Manual.",
+        "parameters": [
+          {"$ref": "#/components/parameters/Active"}, {"$ref": "#/components/parameters/Transmission"},
+          {"$ref": "#/components/parameters/Page"}, {"$ref": "#/components/parameters/PageSize"}, {"$ref": "#/components/parameters/Search"},
+          {"name": "sort", "in": "query", "schema": {"type": "string", "enum": ["name", "transmission", "status", "created_at", "updated_at"]}, "description": "name/transmission/status memerlukan page; status asc menempatkan aktif lebih dulu."},
+          {"$ref": "#/components/parameters/SortDirection"}
+        ],
+        "responses": {
+          "200": {"description": "Array atau halaman instruktur", "content": {"application/json": {"schema": {"oneOf": [
+            {"type": "array", "items": {"$ref": "#/components/schemas/Instructor"}},
+            {"allOf": [{"$ref": "#/components/schemas/Page"}, {"type": "object", "properties": {"items": {"type": "array", "items": {"$ref": "#/components/schemas/Instructor"}}}}]}
+          ]}}}},
+          "default": {"$ref": "#/components/responses/Error"}
+        }
+      },
+      "post": {
+        "tags": ["Instructors"], "operationId": "createInstructor", "summary": "Tambah instruktur",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"allOf": [{"$ref": "#/components/schemas/InstructorInput"}], "required": ["name", "transmission"]}, "example": {"name": "Budi", "transmission": "Matic & Manual", "active": true}}}},
+        "responses": {"201": {"$ref": "#/components/responses/Created"}, "default": {"$ref": "#/components/responses/Error"}}
+      }
+    },
+    "/api/v1/schools/{school_id}/instructors/{id}": {
+      "parameters": [{"$ref": "#/components/parameters/SchoolID"}, {"$ref": "#/components/parameters/RecordID"}],
+      "get": {
+        "tags": ["Instructors"], "operationId": "getInstructor", "summary": "Detail instruktur (array)",
+        "responses": {"200": {"description": "Satu instruktur atau []", "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/Instructor"}}}}}, "default": {"$ref": "#/components/responses/Error"}}
+      },
+      "patch": {
+        "tags": ["Instructors"], "operationId": "updateInstructor", "summary": "Ubah sebagian field instruktur",
+        "description": "Perubahan active/transmission yang membuat sesi mendatang tidak dapat diajar ditolak database.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/InstructorInput"}, "example": {"notes": "Tersedia pagi"}}}},
+        "responses": {"204": {"$ref": "#/components/responses/Updated"}, "default": {"$ref": "#/components/responses/Error"}}
+      },
+      "delete": {
+        "tags": ["Instructors"], "operationId": "deleteInstructor", "summary": "Hapus instruktur",
+        "description": "Ditolak foreign key jika sudah digunakan sesi. Nonaktifkan jika histori perlu dipertahankan, selama tidak melanggar sesi mendatang.",
+        "responses": {"204": {"$ref": "#/components/responses/Deleted"}, "default": {"$ref": "#/components/responses/Error"}}
+      }
+    },
+    "/api/v1/schools/{school_id}/vehicles": {
+      "parameters": [{"$ref": "#/components/parameters/SchoolID"}],
+      "get": {
+        "tags": ["Vehicles"], "operationId": "listVehicles", "summary": "Daftar mobil",
+        "description": "Array dibatasi backend (1000 record); belum ada pagination/search. Filter kompatibilitas bukan jaminan slot tersedia.",
+        "parameters": [{"$ref": "#/components/parameters/Active"}, {"$ref": "#/components/parameters/Transmission"}, {"$ref": "#/components/parameters/TimestampSort"}, {"$ref": "#/components/parameters/SortDirection"}],
+        "responses": {"200": {"description": "Array mobil", "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/Vehicle"}}}}}, "default": {"$ref": "#/components/responses/Error"}}
+      },
+      "post": {
+        "tags": ["Vehicles"], "operationId": "createVehicle", "summary": "Tambah mobil",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"allOf": [{"$ref": "#/components/schemas/VehicleInput"}], "required": ["name", "transmission"]}, "example": {"name": "Avanza", "transmission": "Manual", "active": true}}}},
+        "responses": {"201": {"$ref": "#/components/responses/Created"}, "default": {"$ref": "#/components/responses/Error"}}
+      }
+    },
+    "/api/v1/schools/{school_id}/vehicles/{id}": {
+      "parameters": [{"$ref": "#/components/parameters/SchoolID"}, {"$ref": "#/components/parameters/RecordID"}],
+      "get": {
+        "tags": ["Vehicles"], "operationId": "getVehicle", "summary": "Detail mobil (array)",
+        "responses": {"200": {"description": "Satu mobil atau []", "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/Vehicle"}}}}}, "default": {"$ref": "#/components/responses/Error"}}
+      },
+      "patch": {
+        "tags": ["Vehicles"], "operationId": "updateVehicle", "summary": "Ubah sebagian field mobil",
+        "description": "Perubahan active/transmission tidak boleh membuat sesi mendatang tidak dapat berlangsung.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/VehicleInput"}, "example": {"name": "Avanza 02"}}}},
+        "responses": {"204": {"$ref": "#/components/responses/Updated"}, "default": {"$ref": "#/components/responses/Error"}}
+      },
+      "delete": {
+        "tags": ["Vehicles"], "operationId": "deleteVehicle", "summary": "Hapus mobil",
+        "description": "Mobil yang sudah digunakan sesi tidak dapat dihapus karena foreign key.",
+        "responses": {"204": {"$ref": "#/components/responses/Deleted"}, "default": {"$ref": "#/components/responses/Error"}}
+      }
+    },
+    "/api/v1/schools/{school_id}/packages": {
+      "parameters": [{"$ref": "#/components/parameters/SchoolID"}],
+      "get": {
+        "tags": ["Packages"], "operationId": "listPackages", "summary": "Daftar paket", "description": "Belum mendukung filter active atau pagination; pilih paket aktif dari hasil untuk pembelian. Array tetap dibatasi backend (1000 record).",
+        "parameters": [{"$ref": "#/components/parameters/TimestampSort"}, {"$ref": "#/components/parameters/SortDirection"}],
+        "responses": {"200": {"description": "Array paket, dibatasi backend (1000 record)", "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/Package"}}}}}, "default": {"$ref": "#/components/responses/Error"}}
+      },
+      "post": {
+        "tags": ["Packages"], "operationId": "createPackage", "summary": "Tambah paket latihan",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"allOf": [{"$ref": "#/components/schemas/PackageInput"}], "required": ["name", "total_sessions", "normal_price", "transmission", "session_duration_minutes"]}, "example": {"name": "Paket Matic", "total_sessions": 6, "normal_price": 600000, "transmission": "Matic", "session_duration_minutes": 60, "active": true}}}},
+        "responses": {"201": {"$ref": "#/components/responses/Created"}, "default": {"$ref": "#/components/responses/Error"}}
+      }
+    },
+    "/api/v1/schools/{school_id}/packages/{id}": {
+      "parameters": [{"$ref": "#/components/parameters/SchoolID"}, {"$ref": "#/components/parameters/RecordID"}],
+      "get": {
+        "tags": ["Packages"], "operationId": "getPackage", "summary": "Detail paket (array)",
+        "responses": {"200": {"description": "Satu paket atau []", "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/Package"}}}}}, "default": {"$ref": "#/components/responses/Error"}}
+      },
+      "patch": {
+        "tags": ["Packages"], "operationId": "updatePackage", "summary": "Ubah sebagian field paket",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PackageInput"}, "example": {"active": false}}}},
+        "responses": {"204": {"$ref": "#/components/responses/Updated"}, "default": {"$ref": "#/components/responses/Error"}}
+      }
+    },
+    "/api/v1/schools/{school_id}/student_enrollments": {
+      "parameters": [{"$ref": "#/components/parameters/SchoolID"}],
+      "get": {
+        "tags": ["Enrollments"], "operationId": "listEnrollments", "summary": "Daftar enrollment dan progres lengkap", "description": "Snapshot pembelian beserta progres seluruh tanggal per enrollment. completed_sessions hanya Selesai; scheduled_sessions mencakup Menunggu konfirmasi dan Terkonfirmasi; used_sessions adalah jumlah keduanya; remaining_sessions=total_sessions-used_sessions. Dibatalkan dan Tidak hadir tidak memakai kuota. Tanpa page/page_size tetap array maksimal 1000; salah satu parameter mengaktifkan pagination. Muat semua halaman tanpa filter status untuk total progres murid lintas pembelian. PATCH enrollment tidak tersedia (HTTP 405).",
+        "parameters": [
+          {"$ref": "#/components/parameters/TimestampSort"}, {"$ref": "#/components/parameters/SortDirection"},
+          {"name": "student_id", "in": "query", "schema": {"$ref": "#/components/schemas/UUID"}},
+          {"name": "status", "in": "query", "schema": {"type": "string", "enum": ["Aktif", "Selesai", "Dibatalkan"]}},
+          {"$ref": "#/components/parameters/Page"},
+          {"name": "page_size", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 100, "default": 10}}
+        ],
+        "responses": {"200": {"description": "Array enrollment atau halaman jika page/page_size diberikan. Urutan id ASC.", "content": {"application/json": {"schema": {"oneOf": [{"type": "array", "items": {"$ref": "#/components/schemas/Enrollment"}}, {"allOf": [{"$ref": "#/components/schemas/Page"}, {"type": "object", "properties": {"items": {"type": "array", "items": {"$ref": "#/components/schemas/Enrollment"}}}}]}]}}}}, "default": {"$ref": "#/components/responses/Error"}}
+      },
+      "post": {
+        "tags": ["Enrollments"], "operationId": "createEnrollment", "summary": "Daftarkan siswa ke paket",
+        "description": "Database menyalin nama, kuota, harga kesepakatan, transmisi, dan durasi dari satu versi paket aktif. Promo dipilih jika tanggal pembelian Asia/Makassar berada dalam periode inklusif. Snapshot dan tenant dari body klien diabaikan. Perubahan katalog tidak mengubah enrollment lama.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "required": ["student_id", "package_id"], "properties": {"student_id": {"$ref": "#/components/schemas/UUID"}, "package_id": {"$ref": "#/components/schemas/UUID"}}}}}},
+        "responses": {"200": {"$ref": "#/components/responses/UUID"}, "404": {"$ref": "#/components/responses/NotFound"}, "default": {"$ref": "#/components/responses/Error"}}
+      }
+    },
+    "/api/v1/schools/{school_id}/student_enrollments/{id}": {
+      "parameters": [{"$ref": "#/components/parameters/SchoolID"}, {"$ref": "#/components/parameters/RecordID"}],
+      "get": {
+        "tags": ["Enrollments"], "operationId": "getEnrollment", "summary": "Detail enrollment (array)",
+        "responses": {"200": {"description": "Satu enrollment atau []", "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/Enrollment"}}}}}, "default": {"$ref": "#/components/responses/Error"}}
+      }
+    },
+    "/api/v1/schools/{school_id}/sessions": {
+      "parameters": [{"$ref": "#/components/parameters/SchoolID"}],
+      "get": {
+        "tags": ["Sessions"], "operationId": "listSessions", "summary": "Kalender sesi atau riwayat lengkap per siswa",
+        "description": "Kalender membutuhkan date_from/date_to valid, berurutan, maksimal 31 hari inklusif. Khusus student_id UUID valid, kedua parameter tanggal boleh dihilangkan untuk riwayat seluruh tanggal dan seluruh status. Jika salah satu tanggal dikirim, keduanya wajib dan batas 31 hari tetap berlaku. Riwayat termasuk sesi mendatang; total adalah jumlah sesi setelah filter, bukan progres selesai. Urutan session_date ASC, start_time ASC, id ASC. Muat semua halaman untuk seluruh riwayat. Gunakan progres enrollment untuk angka kuota/progres lengkap.",
+        "parameters": [
+          {"$ref": "#/components/parameters/TimestampSort"}, {"$ref": "#/components/parameters/SortDirection"},
+          {"name": "date_from", "in": "query", "description": "Wajib kecuali riwayat siswa tanpa kedua tanggal.", "schema": {"type": "string", "format": "date"}, "example": "2026-11-11"},
+          {"name": "date_to", "in": "query", "description": "Wajib kecuali riwayat siswa tanpa kedua tanggal.", "schema": {"type": "string", "format": "date"}, "example": "2026-11-17"},
+          {"name": "student_id", "in": "query", "schema": {"$ref": "#/components/schemas/UUID"}},
+          {"name": "instructor_id", "in": "query", "schema": {"$ref": "#/components/schemas/UUID"}},
+          {"name": "vehicle_id", "in": "query", "schema": {"$ref": "#/components/schemas/UUID"}},
+          {"$ref": "#/components/parameters/Page"},
+          {"name": "page_size", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 100, "default": 100}}
+        ],
+        "responses": {
+          "200": {"description": "Halaman sesi", "content": {"application/json": {"schema": {"allOf": [{"$ref": "#/components/schemas/Page"}, {"type": "object", "properties": {"items": {"type": "array", "items": {"$ref": "#/components/schemas/Session"}}}}]}, "example": {"items": [], "total": 0, "page": 1, "pageSize": 100}}}},
+          "default": {"$ref": "#/components/responses/Error"}
+        }
+      },
+      "post": {
+        "tags": ["Sessions"], "operationId": "createSession", "summary": "Buat sesi latihan",
+        "description": "Seluruh detail wajib. ID harus saling berhubungan dalam sekolah yang sama. Transmisi sesi/mobil wajib sama dengan snapshot enrollment; instruktur harus kompatibel. Durasi wajib tepat session_duration_minutes snapshot, termasuk detik. Edit katalog tidak mengubah hak pembelian lama. SQL memeriksa jam buka, resource aktif, konflik dan kuota.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SessionInput"}}}},
+        "responses": {"200": {"$ref": "#/components/responses/UUID"}, "400": {"$ref": "#/components/responses/BadRequest"}, "409": {"$ref": "#/components/responses/Conflict"}, "default": {"$ref": "#/components/responses/Error"}}
+      }
+    },
+    "/api/v1/schools/{school_id}/sessions/{id}": {
+      "parameters": [{"$ref": "#/components/parameters/SchoolID"}, {"$ref": "#/components/parameters/RecordID"}],
+      "get": {
+        "tags": ["Sessions"], "operationId": "getSession", "summary": "Detail sesi (array), tanpa rentang tanggal",
+        "responses": {"200": {"description": "Satu sesi atau []", "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/Session"}}}}}, "default": {"$ref": "#/components/responses/Error"}}
+      },
+      "patch": {
+        "tags": ["Sessions"], "operationId": "updateSession", "summary": "Ganti seluruh detail sesi atau batalkan",
+        "description": "PATCH biasa membutuhkan seluruh detail, termasuk saat menyelesaikan sesi. Khusus status Dibatalkan, cukup status saja; detail lain diabaikan. PATCH biasa memeriksa transmisi/durasi terhadap snapshot enrollment. Pembatalan tidak memvalidasi ulang jam, durasi, transmisi atau resource historis. Tidak ada DELETE sesi.",
+        "requestBody": {"required": true, "content": {"application/json": {
+          "schema": {"anyOf": [{"$ref": "#/components/schemas/SessionInput"}, {"$ref": "#/components/schemas/CancelSession"}]},
+          "examples": {
+            "reschedule": {"summary": "Update lengkap", "value": {"student_id": "22222222-2222-2222-2222-222222222222", "enrollment_id": "33333333-3333-3333-3333-333333333333", "instructor_id": "44444444-4444-4444-4444-444444444444", "vehicle_id": "55555555-5555-5555-5555-555555555555", "session_date": "2026-11-12", "start_time": "09:00", "end_time": "10:00", "transmission": "Matic", "status": "Terkonfirmasi"}},
+            "cancel": {"summary": "Batalkan sesi", "value": {"status": "Dibatalkan"}}
+          }
+        }}},
+        "responses": {"200": {"$ref": "#/components/responses/UUID"}, "400": {"$ref": "#/components/responses/BadRequest"}, "404": {"$ref": "#/components/responses/NotFound"}, "409": {"$ref": "#/components/responses/Conflict"}, "default": {"$ref": "#/components/responses/Error"}}
+      }
+    },
+  "/api/v1/schools/{school_id}/members": {
+    "parameters": [
+      {
+        "$ref": "#/components/parameters/SchoolID"
+      }
+    ],
+    "get": {"tags": ["Members"], "operationId": "listSchoolMembers", "summary": "Daftar anggota sekolah (owner)", "description": "Maksimal 1000 anggota; default created_at DESC. sort dapat berupa created_at atau updated_at, direction asc atau desc.", "parameters": [{"$ref": "#/components/parameters/TimestampSort"}, {"$ref": "#/components/parameters/SortDirection"}], "responses": {"200": {"description": "Anggota", "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/Member"}}}}}, "default": {"$ref": "#/components/responses/Error"}}},
+    "post": {
+      "tags": [
+        "Legacy"
+      ],
+      "operationId": "addStaff",
+      "summary": "Endpoint tambah staff langsung telah ditutup",
+      "description": "Selalu 410 untuk owner sekolah lengkap. Gunakan endpoint invitations dan konfirmasi penerima.",
+      "responses": {
+        "410": {
+          "description": "Gunakan flow undangan"
+        },
+        "default": {
+          "$ref": "#/components/responses/Error"
+        }
+      },
+      "deprecated": true
+    }
+  },
+    "/api/v1/schools/{school_id}/invitations": {
+      "parameters": [{"$ref": "#/components/parameters/SchoolID"}],
+      "get": {"tags": ["Invitations"], "operationId": "listSchoolInvitations", "summary": "Daftar undangan dan riwayat sekolah (owner)", "responses": {"400": {"$ref": "#/components/responses/BadRequest"}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}, "404": {"$ref": "#/components/responses/NotFound"}, "409": {"$ref": "#/components/responses/Conflict"}, "502": {"$ref": "#/components/responses/Unavailable"}, "200": {"description": "Array maksimal 1000 atau halaman; urutan created_at DESC, id DESC.", "content": {"application/json": {"schema": {"oneOf": [{"type": "array", "items": {"$ref": "#/components/schemas/Invitation"}}, {"$ref": "#/components/schemas/InvitationPage"}]}}}}, "416": {"description": "Halaman di luar hasil"}}, "parameters": [{"$ref": "#/components/parameters/Page"}, {"$ref": "#/components/parameters/PageSize"}, {"$ref": "#/components/parameters/TimestampSort"}, {"$ref": "#/components/parameters/SortDirection"}], "description": "Pagination opsional: page 1..1000000, page_size 1..100; default 1/10 jika salah satu diisi. Parameter berulang/invalid ditolak. Tanpa pagination, maksimal 1000 undangan."},
+      "post": {"tags": ["Invitations"], "operationId": "createSchoolInvitation", "summary": "Undang staff melalui email (owner)", "responses": {"400": {"$ref": "#/components/responses/BadRequest"}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}, "404": {"$ref": "#/components/responses/NotFound"}, "409": {"$ref": "#/components/responses/Conflict"}, "502": {"$ref": "#/components/responses/Unavailable"}, "201": {"$ref": "#/components/responses/UUID"}}, "description": "Berlaku 7 hari. Email di-trim dan lowercase. Tidak mengirim email atau memberi akses. Pending duplikat menghasilkan 409. Membership penerima diperiksa berdasarkan user ID saat accept. Undangan kedaluwarsa otomatis dibatalkan saat diganti.", "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "required": ["email"], "properties": {"email": {"type": "string", "format": "email", "maxLength": 254}}}}}}}
+    },
+    "/api/v1/schools/{school_id}/invitations/{id}": {
+      "parameters": [{"$ref": "#/components/parameters/SchoolID"}, {"$ref": "#/components/parameters/RecordID"}],
+      "delete": {"tags": ["Invitations"], "operationId": "revokeSchoolInvitation", "summary": "Batalkan undangan (owner)", "responses": {"400": {"$ref": "#/components/responses/BadRequest"}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}, "404": {"$ref": "#/components/responses/NotFound"}, "409": {"$ref": "#/components/responses/Conflict"}, "502": {"$ref": "#/components/responses/Unavailable"}, "204": {"description": "Dibatalkan; body kosong"}}, "description": "Menyimpan riwayat, bukan menghapus row. Pembatalan ulang aman. Undangan diterima menghasilkan 409."}
+    },
+    "/api/v1/invitations": {
+      "get": {"tags": ["Invitations"], "operationId": "listMyInvitations", "summary": "Undangan aktif untuk email akun login", "responses": {"400": {"$ref": "#/components/responses/BadRequest"}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}, "404": {"$ref": "#/components/responses/NotFound"}, "409": {"$ref": "#/components/responses/Conflict"}, "502": {"$ref": "#/components/responses/Unavailable"}, "200": {"description": "Array maksimal 1000 atau halaman; urutan created_at DESC, id DESC.", "content": {"application/json": {"schema": {"oneOf": [{"type": "array", "items": {"$ref": "#/components/schemas/Invitation"}}, {"$ref": "#/components/schemas/InvitationPage"}]}}}}, "416": {"description": "Halaman di luar hasil"}}, "parameters": [{"$ref": "#/components/parameters/Page"}, {"$ref": "#/components/parameters/PageSize"}, {"$ref": "#/components/parameters/TimestampSort"}, {"$ref": "#/components/parameters/SortDirection"}], "description": "Pagination opsional: page 1..1000000, page_size 1..100; default 1/10 jika salah satu diisi. Parameter berulang/invalid ditolak. Tanpa pagination, maksimal 1000 undangan."}
+    },
+    "/api/v1/invitations/{id}/accept": {
+      "parameters": [{"$ref": "#/components/parameters/RecordID"}],
+      "post": {"tags": ["Invitations"], "operationId": "acceptSchoolInvitation", "summary": "Konfirmasi undangan dan aktifkan membership staff", "responses": {"400": {"$ref": "#/components/responses/BadRequest"}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}, "404": {"$ref": "#/components/responses/NotFound"}, "409": {"$ref": "#/components/responses/Conflict"}, "502": {"$ref": "#/components/responses/Unavailable"}, "200": {"$ref": "#/components/responses/UUID"}}, "description": "Tidak memerlukan membership sebelumnya. Email terverifikasi harus cocok (404 jika tidak). Memvalidasi expiry, pembatalan, penerimaan sebelumnya dan setup sekolah; membuat membership staff dan menandai diterima secara atomik. 409 jika tidak aktif atau akun sudah menjadi anggota sekolah. Respons adalah school_id. Body tidak diperlukan."}
+    },
+    "/api/v1/schools/{school_id}/seed-demo": {
+      "parameters": [{"$ref": "#/components/parameters/SchoolID"}],
+      "post": {
+        "tags": ["Legacy"], "operationId": "seedDemo", "summary": "Tambahkan data contoh ke sekolah demo (owner)",
+        "description": "Menulis data nyata! Hanya owner sekolah bernama persis Sekolah Demo Jago Nyetir dengan setup lengkap. Menambah paket, siswa, instruktur, mobil, enrollment, sesi contoh; berbeda dari CLI seed development. Tidak memerlukan body. Bukan mock mode.",
+        "responses": {"200": {"description": "RPC selesai; JSON null", "content": {"application/json": {"schema": {"type": "string", "nullable": true}, "example": null}}}, "default": {"$ref": "#/components/responses/Error"}}
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT", "description": "Access token pengguna dari Supabase Auth. Masukkan token saja tanpa awalan Bearer. Tidak memerlukan integrasi frontend. Token dummy/anon key tidak diterima."}
+    },
+    "parameters": {
+      "SchoolID": {"name": "school_id", "in": "path", "required": true, "description": "UUID sekolah dari GET /api/v1/schools, bukan ID proyek Supabase.", "schema": {"$ref": "#/components/schemas/UUID"}},
+      "RecordID": {"name": "id", "in": "path", "required": true, "description": "UUID resource milik sekolah pada URL.", "schema": {"$ref": "#/components/schemas/UUID"}},
+      "Page": {"name": "page", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 1000000, "default": 1}},
+      "PageSize": {"name": "page_size", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 100, "default": 10}},
+      "TimestampSort": {"name": "sort", "in": "query", "schema": {"type": "string", "enum": ["created_at", "updated_at"]}},
+      "SortDirection": {"name": "direction", "in": "query", "schema": {"type": "string", "enum": ["asc", "desc"]}},
+      "Search": {"name": "search", "in": "query", "schema": {"type": "string", "maxLength": 100}, "description": "Di-trim, case-insensitive, wildcard diperlakukan literal."},
+      "Active": {"name": "active", "in": "query", "schema": {"type": "boolean"}, "description": "Hanya literal true/false."},
+      "Transmission": {"name": "transmission", "in": "query", "schema": {"$ref": "#/components/schemas/Transmission"}}
+    },
+    "requestBodies": {
+      "SchoolProfile": {"required": true, "content": {"application/json": {
+        "schema": {"$ref": "#/components/schemas/SchoolProfile"},
+        "example": {"name": "Sekolah Mengemudi", "location": "Jl. Contoh No. 10, Samarinda", "weekday": {"open": "08:00", "close": "17:00"}, "weekend": {"closed": true}}
+      }}}
+    },
+    "responses": {
+      "UUID": {"description": "JSON string UUID, bukan objek", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/UUID"}, "example": "11111111-1111-1111-1111-111111111111"}}},
+      "Created": {"description": "Record dibuat; respons JSON string UUID.", "content": {"application/json": {"schema": {"type": "string", "format": "uuid"}}}},
+      "Updated": {"description": "Request update selesai, body kosong. ID tidak ditemukan juga dapat menghasilkan 204; GET detail untuk verifikasi."},
+      "Deleted": {"description": "Request delete selesai, body kosong. ID tidak ditemukan juga dapat menghasilkan 204."},
+      "NotFound": {"description": "404 / P0002: siswa pembelian, sesi yang diubah/dibatalkan, atau akun staff tidak ditemukan. GET detail tetap mengembalikan array kosong.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}, "example": {"code": "P0002", "message": "Session not found", "details": null, "hint": null}}}},
+      "BadRequest": {"description": "Input tidak valid, outside_operating_hours, enrollment_transmission_mismatch atau enrollment_duration_mismatch (400)", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}, "examples": {"validation": {"value": {"error": "Invalid JSON"}}, "hours": {"value": {"code": "outside_operating_hours", "message": "Session must be within school operating hours"}}, "transmission": {"value": {"code": "enrollment_transmission_mismatch", "message": "Session transmission must match enrollment"}}, "duration": {"value": {"code": "enrollment_duration_mismatch", "message": "Session duration must match enrollment"}}}}}},
+      "Unauthorized": {"description": "401: header hilang atau token ditolak", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}, "example": {"error": "Sign-in required"}}}},
+      "Forbidden": {"description": "403: email belum terverifikasi, bukan anggota/owner, setup belum lengkap, atau izin SQL ditolak", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}, "examples": {"setup": {"value": {"code": "school_setup_required", "error": "Complete school settings before using operational features"}}, "email": {"value": {"code": "verified_email_required", "error": "Verified email required"}}}}}},
+      "Conflict": {"description": "409: schedule_conflict, session_allowance_exhausted, operating_hours_conflict, atau constraint database lain. Tiga kode tersebut hanya dinormalisasi pada penulisan sesi/Settings.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}, "examples": {
+        "schedule": {"value": {"code": "schedule_conflict", "message": "Schedule conflict"}},
+        "allowance": {"value": {"code": "session_allowance_exhausted", "message": "Package session allowance exhausted"}},
+        "settings": {"value": {"code": "operating_hours_conflict", "message": "Operating hours conflict with upcoming sessions"}}
+      }}}},
+      "Unavailable": {"description": "502: layanan Auth/data tidak tersedia atau respons rusak; readiness memakai 503. Jangan dianggap logout.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+      "Error": {"description": "400 input tidak valid; 401 token hilang/ditolak; 403 verified_email_required, akses sekolah/owner, school_setup_required atau izin SQL; 404 route/UUID tidak valid atau resource RPC tidak ditemukan (P0002); 405 method tidak didukung; 409 constraint/konflik; 416 halaman di luar hasil; 502 layanan Auth/data bermasalah. Error database lain mengikuti pemetaan SQLSTATE yang kompatibel dengan kontrak API.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}, "examples": {"unauthorized": {"value": {"error": "Sign-in required"}}, "upstream": {"value": {"code": "23503", "message": "Foreign key violation", "details": null, "hint": null}}}}}}
+    },
+    "schemas": {
+      "Member": {"type": "object", "required": ["school_id", "user_id", "role", "email", "created_at", "updated_at"], "properties": {"school_id": {"type": "string", "format": "uuid"}, "user_id": {"type": "string", "format": "uuid"}, "role": {"type": "string", "enum": ["owner", "staff"]}, "email": {"type": "string", "nullable": true}, "created_at": {"type": "string", "format": "date-time"}, "updated_at": {"type": "string", "format": "date-time"}}},
+      "Invitation": {"type": "object", "required": ["id", "school_id", "invited_by", "school_name", "email", "created_at", "updated_at", "expires_at", "accepted_at", "revoked_at"], "properties": {"id": {"type": "string", "format": "uuid"}, "school_id": {"type": "string", "format": "uuid"}, "invited_by": {"type": "string", "format": "uuid"}, "school_name": {"type": "string"}, "email": {"type": "string"}, "created_at": {"type": "string", "format": "date-time"}, "updated_at": {"type": "string", "format": "date-time"}, "expires_at": {"type": "string", "format": "date-time"}, "accepted_at": {"type": "string", "format": "date-time", "nullable": true}, "revoked_at": {"type": "string", "format": "date-time", "nullable": true}}},
+      "InvitationPage": {"type": "object", "required": ["items", "total", "page", "pageSize"], "properties": {"items": {"type": "array", "items": {"$ref": "#/components/schemas/Invitation"}}, "total": {"type": "integer"}, "page": {"type": "integer"}, "pageSize": {"type": "integer"}}},
+      "HomeSession": {"type": "object", "required": ["id", "student_id", "student_name", "session_date", "start_time", "end_time", "status", "created_at", "updated_at"], "properties": {
+        "id": {"type": "string", "format": "uuid"}, "student_id": {"type": "string", "format": "uuid"}, "student_name": {"type": "string"}, "session_date": {"type": "string", "format": "date"}, "start_time": {"type": "string", "example": "09:00:00"}, "end_time": {"type": "string", "example": "10:00:00"}, "status": {"type": "string"}, "created_at": {"type": "string", "format": "date-time"}, "updated_at": {"type": "string", "format": "date-time"}
+      }},
+      "UUID": {"type": "string", "format": "uuid", "example": "11111111-1111-1111-1111-111111111111"},
+      "Transmission": {"type": "string", "enum": ["Matic", "Manual"]},
+      "Identity": {"type": "object", "properties": {"id": {"$ref": "#/components/schemas/UUID"}, "school_id": {"$ref": "#/components/schemas/UUID"}, "created_at": {"type": "string", "format": "date-time"}, "updated_at": {"type": "string", "format": "date-time"}}},
+      "Hours": {
+        "description": "Senin-Jumat atau Sabtu-Minggu. HH:MM, open < close, hari yang sama. closed=true tidak boleh disertai jam. Minimal satu kelompok hari harus buka.",
+        "oneOf": [
+          {"type": "object", "additionalProperties": false, "required": ["closed"], "properties": {"closed": {"type": "boolean", "enum": [true]}}},
+          {"type": "object", "additionalProperties": false, "required": ["open", "close"], "properties": {"closed": {"type": "boolean", "enum": [false]}, "open": {"type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$", "example": "08:00"}, "close": {"type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$", "example": "17:00"}}}
+        ]
+      },
+      "SchoolProfile": {"type": "object", "required": ["name", "location", "weekday", "weekend"], "properties": {
+        "name": {"type": "string", "minLength": 1, "example": "Sekolah Mengemudi"},
+        "location": {"type": "string", "minLength": 1, "description": "Alamat teks, bukan koordinat.", "example": "Jl. Contoh No. 10, Samarinda"},
+        "weekday": {"$ref": "#/components/schemas/Hours"}, "weekend": {"$ref": "#/components/schemas/Hours"}
+      }},
+      "SchoolSummary": {"type": "object", "properties": {
+        "id": {"$ref": "#/components/schemas/UUID"}, "name": {"type": "string"},
+        "location": {"type": "string", "nullable": true},
+        "setup_complete": {"type": "boolean"}, "role": {"type": "string", "enum": ["owner", "staff"]}, "created_at": {"type": "string", "format": "date-time"}, "updated_at": {"type": "string", "format": "date-time"}
+      }},
+      "SchoolSettings": {"type": "object", "properties": {
+        "id": {"$ref": "#/components/schemas/UUID"}, "name": {"type": "string"},
+        "location": {"type": "string", "nullable": true},
+        "setup_complete": {"type": "boolean", "readOnly": true},
+        "weekday_closed": {"type": "boolean", "nullable": true}, "weekday_open": {"type": "string", "nullable": true, "example": "08:00:00"}, "weekday_close": {"type": "string", "nullable": true, "example": "17:00:00"},
+        "weekend_closed": {"type": "boolean", "nullable": true}, "weekend_open": {"type": "string", "nullable": true}, "weekend_close": {"type": "string", "nullable": true},
+        "created_at": {"type": "string", "format": "date-time"}, "updated_at": {"type": "string", "format": "date-time"}
+      }},
+      "StudentInput": {"type": "object", "additionalProperties": false, "minProperties": 1, "properties": {
+        "name": {"type": "string", "minLength": 1, "example": "Ayu"},
+        "phone": {"type": "string", "nullable": true, "example": "081234567890"},
+        "status": {"type": "string", "minLength": 1, "description": "Default database Aktif; belum dibatasi enum."}
+      }},
+      "Student": {"allOf": [{"$ref": "#/components/schemas/Identity"}, {"type": "object", "properties": {
+        "name": {"type": "string"}, "phone": {"type": "string", "nullable": true}, "status": {"type": "string"}, "created_at": {"type": "string", "format": "date-time"}
+      }}]},
+      "InstructorInput": {"type": "object", "additionalProperties": false, "minProperties": 1, "properties": {
+        "name": {"type": "string", "minLength": 1, "example": "Budi"},
+        "transmission": {"type": "string", "enum": ["Matic", "Manual", "Matic & Manual"]},
+        "active": {"type": "boolean", "description": "Default database true saat create."},
+        "notes": {"type": "string", "nullable": true}
+      }},
+      "Instructor": {"allOf": [{"$ref": "#/components/schemas/Identity"}, {"type": "object", "properties": {
+        "name": {"type": "string"}, "transmission": {"type": "string", "enum": ["Matic", "Manual", "Matic & Manual"]},
+        "active": {"type": "boolean"}, "notes": {"type": "string", "nullable": true}
+      }}]},
+      "VehicleInput": {"type": "object", "additionalProperties": false, "minProperties": 1, "properties": {
+        "name": {"type": "string", "minLength": 1, "example": "Avanza"}, "transmission": {"$ref": "#/components/schemas/Transmission"},
+        "active": {"type": "boolean", "description": "Default database true saat create."}
+      }},
+      "Vehicle": {"allOf": [{"$ref": "#/components/schemas/Identity"}, {"type": "object", "properties": {
+        "name": {"type": "string"}, "transmission": {"$ref": "#/components/schemas/Transmission"}, "active": {"type": "boolean"}
+      }}]},
+      "PackageInput": {"description": "Harga berupa angka JSON desimal biasa (tanpa eksponen), maksimal 8 digit bulat dan 2 digit pecahan. Enrollment menyalin normal_price menjadi agreed_price saat pembelian.", "type": "object", "additionalProperties": false, "minProperties": 1, "properties": {
+        "name": {"type": "string", "minLength": 1, "example": "Paket Matic"},
+        "description": {"type": "string", "nullable": true},
+        "normal_price": {"type": "number", "minimum": 0, "maximum": 99999999.99, "multipleOf": 0.01},
+        "transmission": {"$ref": "#/components/schemas/Transmission"},
+        "session_duration_minutes": {"type": "integer", "minimum": 1, "maximum": 1439},
+        "total_sessions": {"type": "integer", "minimum": 1, "maximum": 2147483647, "example": 6},
+        "active": {"type": "boolean", "description": "Default database true saat create."}
+      }},
+      "Package": {"allOf": [{"$ref": "#/components/schemas/Identity"}, {"type": "object", "properties": {
+        "name": {"type": "string"}, "total_sessions": {"type": "integer"}, "active": {"type": "boolean"},
+        "description": {"type": "string", "nullable": true},
+        "normal_price": {"type": "number", "minimum": 0, "maximum": 99999999.99, "multipleOf": 0.01},
+        "transmission": {"$ref": "#/components/schemas/Transmission"},
+        "session_duration_minutes": {"type": "integer", "minimum": 1, "maximum": 1439}
+      }}]},
+      "Enrollment": {"allOf": [{"$ref": "#/components/schemas/Identity"}, {"type": "object", "properties": {
+        "student_id": {"$ref": "#/components/schemas/UUID"}, "package_id": {"$ref": "#/components/schemas/UUID"},
+        "package_name": {"type": "string"}, "total_sessions": {"type": "integer"},
+        "completed_sessions": {"type": "integer", "minimum": 0, "readOnly": true, "description": "Jumlah sesi Selesai seluruh tanggal."},
+        "scheduled_sessions": {"type": "integer", "minimum": 0, "readOnly": true, "description": "Jumlah sesi Menunggu konfirmasi dan Terkonfirmasi seluruh tanggal; tidak disimpulkan dari jam saat ini."},
+        "used_sessions": {"type": "integer", "minimum": 0, "readOnly": true, "description": "completed_sessions + scheduled_sessions."},
+        "remaining_sessions": {"type": "integer", "readOnly": true, "description": "total_sessions - used_sessions; status enrollment tetap menentukan boleh tidaknya penjadwalan."},
+        "cancelled_sessions": {"type": "integer", "minimum": 0, "readOnly": true},
+        "missed_sessions": {"type": "integer", "minimum": 0, "readOnly": true},
+        "agreed_price": {"type": "number", "minimum": 0, "maximum": 99999999.99, "multipleOf": 0.01, "readOnly": true},
+        "transmission": {"allOf": [{"$ref": "#/components/schemas/Transmission"}], "readOnly": true},
+        "session_duration_minutes": {"type": "integer", "minimum": 1, "maximum": 1439, "readOnly": true},
+        "status": {"type": "string", "enum": ["Aktif", "Selesai", "Dibatalkan"]}, "enrolled_at": {"type": "string", "format": "date-time"}
+      }}]},
+      "SessionInput": {"type": "object", "required": ["student_id", "enrollment_id", "instructor_id", "vehicle_id", "session_date", "start_time", "end_time", "transmission", "status"], "properties": {
+        "student_id": {"$ref": "#/components/schemas/UUID"}, "enrollment_id": {"$ref": "#/components/schemas/UUID"},
+        "instructor_id": {"$ref": "#/components/schemas/UUID"}, "vehicle_id": {"$ref": "#/components/schemas/UUID"},
+        "session_date": {"type": "string", "format": "date", "example": "2026-11-12"},
+        "start_time": {"type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$", "example": "09:00"},
+        "end_time": {"type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$", "example": "10:00"},
+        "transmission": {"$ref": "#/components/schemas/Transmission"},
+        "status": {"type": "string", "enum": ["Menunggu konfirmasi", "Terkonfirmasi", "Selesai", "Dibatalkan", "Tidak hadir"]}
+      }},
+      "CancelSession": {"type": "object", "required": ["status"], "properties": {"status": {"type": "string", "enum": ["Dibatalkan"]}}},
+      "Session": {"allOf": [{"$ref": "#/components/schemas/Identity"}, {"$ref": "#/components/schemas/SessionInput"}]},
+      "Page": {"type": "object", "required": ["items", "total", "page", "pageSize"], "properties": {
+        "items": {"type": "array", "items": {"type": "object"}}, "total": {"type": "integer", "minimum": 0},
+        "page": {"type": "integer", "minimum": 1}, "pageSize": {"type": "integer", "minimum": 1, "maximum": 100}
+      }},
+      "Error": {"type": "object", "properties": {
+        "error": {"type": "string"}, "code": {"type": "string"}, "message": {"type": "string"},
+        "details": {"type": "string", "nullable": true}, "hint": {"type": "string", "nullable": true}
+      }}
+    }
+  }
+}

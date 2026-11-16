@@ -5,14 +5,7 @@ const moveDay = (day, delta) => { const d = new Date(`${day}T12:00:00Z`); d.setU
 export function seed() {
   const t = isoDay();
   return {
-    leads: [
-      { id: 'L1', name: 'Dinda Maharani', phone: '', interest: 'Matic · Pemanasan', time: 'Pagi', status: 'Baru', source: 'WhatsApp (manual)', date: t, notes: 'Ingin mulai dari dasar.' },
-      { id: 'L2', name: 'Andi Pratama', phone: '', interest: 'Manual', time: 'Sore', status: 'Baru', source: 'Input admin', date: t, notes: '' },
-      { id: 'L3', name: 'Nadia Putri', phone: '', interest: 'Matic · Makin Lancar', time: 'Akhir pekan', status: 'Dihubungi', source: 'WhatsApp (manual)', date: moveDay(t, -1), notes: 'Preferensi instruktur perempuan, sesuai ketersediaan.' },
-      { id: 'L4', name: 'Reza Firdaus', phone: '', interest: 'Kombinasi', time: 'Malam', status: 'Menunggu keputusan', source: 'Input admin', date: moveDay(t, -1), notes: '' },
-      { id: 'L5', name: 'Siti Aulia', phone: '', interest: 'Matic', time: 'Siang', status: 'Dikonversi', source: 'WhatsApp (manual)', date: moveDay(t, -2), notes: '' },
-      { id: 'L6', name: 'Fajar Hidayat', phone: '', interest: 'Manual', time: 'Pagi', status: 'Tidak lanjut', source: 'Input admin', date: moveDay(t, -3), notes: '' }
-    ],
+    leads: [],
     students: [
       { id: 'S1', name: 'Alya Ramadhani', phone: '', packageId: 'P2', package: 'Makin Lancar · Matic', done: 3, total: 8, status: 'Aktif' },
       { id: 'S2', name: 'Bima Saputra', phone: '', packageId: 'P1', package: 'Pemanasan · Manual', done: 1, total: 4, status: 'Aktif' },
@@ -22,9 +15,9 @@ export function seed() {
       { id: 'S6', name: 'Siti Aulia', phone: '', packageId: 'P1', package: 'Pemanasan · Matic', done: 0, total: 4, status: 'Aktif' }
     ],
     packages: [
-      { id: 'P1', name: 'Pemanasan', description: 'Simulasi paket untuk peserta yang baru mulai belajar.', normal_price: 400000, discount_price: null, start_discount: null, end_discount: null, total_sessions: 4, active: true },
-      { id: 'P2', name: 'Makin Lancar', description: 'Simulasi paket untuk latihan bertahap dan konsisten.', normal_price: 800000, discount_price: null, start_discount: null, end_discount: null, total_sessions: 8, active: true },
-      { id: 'P3', name: 'Siap Jalan', description: 'Simulasi paket untuk latihan dengan sesi lebih banyak.', normal_price: 1200000, discount_price: null, start_discount: null, end_discount: null, total_sessions: 12, active: true }
+      { id: 'P1', name: 'Pemanasan', description: 'Simulasi paket untuk peserta yang baru mulai belajar.', normal_price: 400000, transmission: 'Matic', session_duration_minutes: 60, total_sessions: 4, active: true },
+      { id: 'P2', name: 'Makin Lancar', description: 'Simulasi paket untuk latihan bertahap dan konsisten.', normal_price: 800000, transmission: 'Matic', session_duration_minutes: 60, total_sessions: 8, active: true },
+      { id: 'P3', name: 'Siap Jalan', description: 'Simulasi paket untuk latihan dengan sesi lebih banyak.', normal_price: 1200000, transmission: 'Matic', session_duration_minutes: 60, total_sessions: 12, active: true }
     ],
     instructors: [
       { id: 'I1', name: 'Instruktur A', skills: 'Matic & Manual', active: true, notes: 'Identitas dan jadwal belum diverifikasi' },

@@ -2,7 +2,7 @@
 
 Kontrak backend per 10 November 2026. Salin dokumen ini ke repo FE untuk integrasi awal.
 Scope: register/login email + password, konfirmasi email, session, logout, dan routing setelah login.
-Tidak mencakup OAuth, passwordless login, reset password, atau undangan staff.
+Mencakup pemulihan kata sandi melalui Supabase. Tidak mencakup OAuth, passwordless login, atau undangan staff.
 
 ## 1. Batas tanggung jawab
 
@@ -53,6 +53,8 @@ API Go dipanggil lewat origin FE yang sama:
 - `/auth/callback` adalah route FE, bukan endpoint yang disediakan backend Go; hosting SPA harus bisa membuka route tersebut langsung.
 
 ## 3. Register, konfirmasi, login, dan logout
+
+Halaman publik memakai `/login` untuk masuk dan `/regis` untuk daftar. Perpindahan mode menambah riwayat browser; Back/Forward mengikuti halaman tersebut. Setelah restore session selesai, akses dashboard tanpa sesi dan logout kembali ke `/login`. Sesi aktif pada `/login` atau `/regis` diarahkan ke `/dashboard/beranda`. Callback verifikasi tetap `/auth/callback`.
 
 Gunakan method SDK berikut pada client Supabase yang sama:
 
@@ -209,3 +211,13 @@ Referensi resmi Supabase (diverifikasi saat penulisan; konfigurasi proyek nyata 
 
 Undangan staff via magic link belum tersedia. Endpoint members lama langsung memberi akses pada akun terverifikasi,
 bukan invitation yang menunggu persetujuan. Jangan mengimplementasikan UI penerimaan undangan berdasarkan endpoint tersebut.
+
+## Pemulihan kata sandi
+
+Tautan Lupa password? berada sejajar label Kata sandi pada login; tidak tampil pada registrasi. `/lupa-password` memakai layout auth bersama dan mengirim `resetPasswordForEmail(email, { redirectTo: origin + '/lupa-password?reset=1' })`. Pesan sukses bersifat netral: jika email terdaftar, pengguna menerima tautan pemulihan.
+
+Tambahkan URL `/lupa-password?reset=1` untuk origin development dan produksi pada Supabase Authentication > URL Configuration > Redirect URLs. Email recovery harus tetap mengarah ke ConfirmationURL Supabase, bukan langsung ke form tanpa verifikasi token. SDK menangani sesi recovery; frontend tidak mencatat token atau kata sandi ke log/localStorage sendiri.
+
+Pada redirect recovery, tunggu restore session, bersihkan hash/token dari URL dan tampilkan form kata sandi baru serta konfirmasi. Jangan bootstrap data sekolah pada alur ini. Link tanpa sesi valid atau link kedaluwarsa menawarkan permintaan baru. Simpan memakai `updateUser({ password })`; sesudah sukses pengguna kembali ke login dengan signOut. Gagal signOut tidak membatalkan pesan bahwa kata sandi sudah tersimpan.
+
+Validasi minimal 8 karakter dan konfirmasi sama; server tetap menentukan kebijakan sandi. Loading mencegah submit ganda, kegagalan tetap mempertahankan input. Tes UI menggunakan SDK stub; email delivery dan link dari proyek Supabase tujuan perlu diperiksa melalui integrasi nyata.
