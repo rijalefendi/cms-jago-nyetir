@@ -62,12 +62,16 @@ ini mencatat pola penawaran, bukan daftar harga untuk keputusan pembelian.
 
 | Pembanding | Yang terlihat dari sumber publik | Pelajaran dan keterbatasan |
 | --- | --- | --- |
-| **DriverBridge** [S1] | Profil siswa, progres teori/praktik, validasi instruktur, komentar sesi, pelaporan, dan role admin/instruktur/siswa. Pesannya menekankan perpindahan dari formulir kertas ke pencatatan digital terpusat. | Catatan sesi dan progres layak diperhatikan. Belum cukup bukti untuk memastikan harga, adopsi, atau penawaran SaaS multi-tenant komersial aktif. |
+| **DriverBridge** [S1] | Memperkenalkan diri sebagai sistem manajemen sekolah mengemudi yang menggantikan formulir kertas. Mencakup profil dan progres siswa, validasi dan komentar instruktur, serta laporan admin; siswa juga memiliki akses baca. | Pembanding khusus kursus mengemudi, tetapi bukan internal-only. Belum cukup bukti untuk memastikan harga, adopsi, atau penawaran SaaS multi-tenant komersial aktif. |
+| **Bukujanji** [S15] | Memasarkan sistem booking dan manajemen kelas untuk lembaga kursus dan learning center di Indonesia, dengan jadwal, peserta, kehadiran, dan pembayaran. Pesannya menjelaskan pekerjaan pengelola secara langsung. | **Pembanding tidak langsung**, bukan produk khusus kursus mobil. Halaman yang diperiksa tidak menunjukkan penjadwalan mobil dan instruktur; deskripsi fitur adalah klaim vendor, belum diuji. |
 | **Talenta Jaya, studi kasus sistem** [S2] | Membahas pendaftaran/pembayaran yang terpisah antar-cabang, jadwal belum terpusat, serta progres belajar belum terstruktur. | Contoh kebutuhan lokal, **bukan vendor SaaS pembanding** dan bukan bukti bahwa seluruh pasar mengalami masalah yang sama. |
+| **LPK Jeftco Jepara, studi kasus** [S16] | Skripsi membahas jadwal kursus yang dicatat manual serta usulan aplikasi untuk jadwal, mobil, laporan, dan pengingat. | Bukti masalah yang diteliti pada satu lembaga, **bukan bukti produk SaaS yang dipasarkan** atau hasil validasi seluruh pasar. |
 
 Riset ini belum menemukan cukup informasi publik untuk memetakan beberapa SaaS
-Indonesia khusus kursus mobil beserta harga dan adopsinya. Itu keterbatasan
-riset, bukan bukti tidak ada kompetitor.
+Indonesia khusus kursus mobil beserta harga dan adopsinya. Pencarian tambahan
+16 November 2026 menemukan pembanding umum dan studi kasus di atas, bukan
+bukti bahwa tidak ada kompetitor khusus lain. Fitur yang disebut berasal dari
+materi publik, bukan pengujian langsung atau bukti adopsi.
 
 ### Luar negeri
 
@@ -95,6 +99,12 @@ riset, bukan bukti tidak ada kompetitor.
    sekadar menambahkan integrasi.
 5. **Internal-only adalah pilihan fokus, bukan klaim keunikan.**
    Pembanding juga dapat melayani booking manual tanpa booking publik.
+6. **Nama perlu penjelas yang spesifik.** DriverBridge memakai deskripsi
+   “sistem manajemen sekolah mengemudi”; Bukujanji menyebut pengelola dan
+   pekerjaan kelas secara langsung. Untuk produk ini, nama dapat disertai
+   “aplikasi pengelolaan kursus mobil” dan contoh pekerjaan seperti mengatur
+   jadwal murid, instruktur, dan mobil. Ini interpretasi positioning, bukan
+   bukti bahwa salah satu nama lebih efektif bagi calon pengguna.
 
 ### Alur admin menambahkan paket ke murid
 
@@ -393,6 +403,8 @@ Prioritasnya menutup alur yang terputus, bukan menambah jumlah menu.
 - **[S12] SimplyBook.me, driving school:** https://simplybook.me/en/driving-lessons-scheduling-software
 - **[S13] SimplyBook.me, harga:** https://simplybook.me/en/pricing
 - **[S14] Go, transaksi database:** https://go.dev/doc/database/execute-transactions
+- **[S15] Bukujanji, manajemen kelas:** https://app.bukujanji.com/id/sistem-booking/kelas
+- **[S16] LPK Jeftco Jepara, skripsi penjadwalan:** https://eprints.unisnu.ac.id/id/eprint/652/
 
 ### Batas inspeksi repo
 

@@ -11,7 +11,16 @@ import { Invitations } from './Invitations';
 
 const message = (error: unknown) => error instanceof Error ? error.message : 'Terjadi kesalahan. Silakan coba lagi.';
 const pageSlugs: Record<string, string> = { home: 'beranda', students: 'murid', sessions: 'jadwal', instructors: 'instruktur', vehicles: 'mobil', packages: 'paket', settings: 'pengaturan', invitations: 'undangan-staff', inbox: 'inbox-undangan' };
-const pageFromUrl = () => Object.keys(pageSlugs).find(page => location.pathname.match(/^(?:\/schools\/[^/]+)?\/dashboard\/([^/]+)\/?$/)?.[1] === pageSlugs[page]) || 'home';
+const pageFromUrl = () => ['/', '/login', '/regis'].includes(location.pathname) ? 'home' : Object.keys(pageSlugs).find(page => location.pathname.match(/^(?:\/schools\/[^/]+)?\/dashboard\/([^/]+)\/?$/)?.[1] === pageSlugs[page]) || 'not-found';
+
+export function AccessPage({ school, locked = false, kind, onNavigate, loggingOut = false, onLogout }: { school: School; locked?: boolean; kind: 'denied' | 'not-found' | 'setup'; onNavigate: (page: string) => void; loggingOut?: boolean; onLogout?: () => void }) {
+  return <DashboardShell school={school} page="" locked={locked} loggingOut={loggingOut} onLogout={onLogout} onNavigate={onNavigate}>
+    <section className="access-page">
+      <div className="access-page-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">{kind === 'not-found' ? <><path d="M2 2L22 22" /><path d="M19.8478 14.9369C20 14.5694 20 14.1606 20 13.3431V10C20 6.22876 20 4.34315 18.8284 3.17157C17.6569 2 15.7712 2 12 2C9.33333 2 7.60948 2 6.41421 2.41421M4.41421 4.41421C4 5.60948 4 7.33333 4 10L4 14.5442C4 17.7892 4 19.4117 4.88607 20.5107C5.06508 20.7327 5.26731 20.9349 5.48933 21.1139C6.58831 22 8.21082 22 11.4558 22C12.1614 22 12.5141 22 12.8372 21.886C12.9044 21.8623 12.9702 21.835 13.0345 21.8043C13.3436 21.6564 13.593 21.407 14.0919 20.9081L17.5 17.5" /><path d="M13 21.5L13 20.7487C13 17.9203 13 16.5061 13.8787 15.6274C14.1785 15.3276 14.5406 15.1301 15 15" /></> : <><path d="M11 22C7.06358 22.0975 4 18.8075 4 15C4 11.134 7.11877 8 10.966 8C13.5444 8 15.7956 9.4077 17 11.5" /><path d="M15.5 9.5V6.5C15.5 4.01472 13.4853 2 11 2C8.51472 2 6.5 4.01472 6.5 6.5V9.5" /><path d="M12 17H20" /></>}</svg></div>
+      <h1>{kind === 'not-found' ? 'Halaman tidak ditemukan' : kind === 'setup' ? 'Sekolah belum siap' : 'Akses ditolak'}</h1><p id="setup-reason">{kind === 'not-found' ? 'Halaman yang Anda cari tidak tersedia.' : kind === 'setup' ? 'Owner perlu melengkapi data sekolah.' : 'Anda tidak memiliki akses ke halaman ini.'}</p>{!locked && <button className="btn btn-primary" onClick={() => onNavigate('home')}>Kembali ke beranda</button>}
+    </section>
+  </DashboardShell>;
+}
 
 export function AuthApp({ preview }: { preview?: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -148,7 +157,7 @@ function Login({ error: restoreError, clearError, retry, onForgot }: { onForgot:
   }
   return <LoginLayout><section className="panel panel-pad auth-panel">
     <h1>{sent ? 'Verifikasi email' : mode === 'login' ? 'Masuk' : 'Daftar akun'}</h1>
-    <p>{sent ? 'Periksa email untuk memverifikasi akun. Setelah terverifikasi, kembali untuk masuk.' : 'Kelola operasional sekolah mengemudi Anda.'}</p>
+    <p>{sent ? 'Periksa email untuk memverifikasi akun. Setelah terverifikasi, kembali untuk masuk.' : mode === 'signup' ? 'Daftar sebagai pemilik untuk menyiapkan sekolah. Staf bergabung melalui undangan.' : 'Kelola operasional sekolah mengemudi Anda.'}</p>
     {!sent && <form ref={formRef} noValidate onSubmit={submit} onBlur={blur} onChange={change} className="auth-form" aria-busy={busy}>
       <label className="form-field">Email<input name="email" type="email" autoComplete="email" required disabled={busy} aria-invalid={Boolean(fields.email)} aria-describedby={fields.email ? 'auth-email-error' : undefined} />{fields.email && <small id="auth-email-error" className="auth-field-error" role="alert">{fields.email}</small>}</label>
       <div className="form-field">
@@ -179,11 +188,12 @@ function SchoolWorkspace({ userId }: { userId: string }) {
   const [unauthorized, setUnauthorized] = useState(false);
   const [settings, setSettings] = useState(() => pageFromUrl() === 'settings');
   const [operationPage, setOperationPage] = useState(() => pageFromUrl() === 'settings' ? 'students' : pageFromUrl());
-  const [showCreate, setShowCreate] = useState(false);
+  const [showCreate, setShowCreate] = useState(() => pageFromUrl() === 'settings');
   const [saved, setSaved] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [loggingOut, setLoggingOut] = useState(false);
   const serial = useRef(0);
+  const bootstrapped = useRef(false);
   const api: Api = useCallback(async (path, method, body) => {
     try { return await request(userId, path, method, body); }
     catch (error) {
@@ -206,7 +216,15 @@ function SchoolWorkspace({ userId }: { userId: string }) {
     try {
       const schools = await request(userId, '/schools', 'GET', undefined, true) as School[];
       if (!Array.isArray(schools) || schools.length > 1 || schools.some(s => !s.id || typeof s.setup_complete !== 'boolean')) throw Error('Respons sekolah tidak valid. Silakan coba lagi.');
-      if (current === serial.current) { setSchool(schools[0] || null); setUnauthorized(false); }
+      if (current === serial.current) {
+        const next = schools[0] || null;
+        if (!bootstrapped.current && (!next || (next.role === 'owner' && !next.setup_complete)) && pageFromUrl() !== 'inbox') {
+          history.replaceState(null, '', '/dashboard/pengaturan');
+          setSettings(true); setShowCreate(true); setOperationPage('home');
+        }
+        bootstrapped.current = true;
+        setSchool(next); setUnauthorized(false);
+      }
       return schools[0] || null;
     } catch (error) {
       if (current !== serial.current) return;
@@ -215,7 +233,7 @@ function SchoolWorkspace({ userId }: { userId: string }) {
   }, [userId]);
   useEffect(() => { void load(); return () => { serial.current++; }; }, [load, attempt]);
   useEffect(() => {
-    if (!loading && !error && school?.setup_complete && (location.pathname === '/' || /^\/schools\/[^/]+\/dashboard\//.test(location.pathname))) {
+    if (!loading && !error && school?.setup_complete && (location.pathname === '/' || (operationPage !== 'not-found' && /^\/schools\/[^/]+\/dashboard\//.test(location.pathname)))) {
       history.replaceState(null, '', `/dashboard/${pageSlugs[settings ? 'settings' : operationPage]}`);
     }
   }, [loading, error, school, settings, operationPage]);
@@ -223,18 +241,21 @@ function SchoolWorkspace({ userId }: { userId: string }) {
     const onPopState = () => {
       const page = pageFromUrl();
       setSettings(page === 'settings');
-      if (page !== 'settings') setOperationPage(page);
+      setShowCreate(page === 'settings');
+      setOperationPage(page === 'settings' ? 'home' : page);
       setSaved(false);
     };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
   function navigate(page: string) {
-    if (!pageSlugs[page] || (page === 'invitations' && (school?.role !== 'owner' || !school.setup_complete))) return;
+    if (!pageSlugs[page] || (page === 'settings' && school && school.role !== 'owner') || (page === 'invitations' && (school?.role !== 'owner' || !school.setup_complete))) return;
     const path = `/dashboard/${pageSlugs[page]}`;
     if (location.pathname !== path) history.pushState(null, '', path);
     setSettings(page === 'settings');
+    setShowCreate(page === 'settings');
     if (page !== 'settings') setOperationPage(page);
+    else if (operationPage === 'not-found') setOperationPage('home');
     setSaved(false);
   }
   async function logout() {
@@ -248,13 +269,15 @@ function SchoolWorkspace({ userId }: { userId: string }) {
   }
   const locked = !school?.setup_complete;
   const invitationPage = operationPage === 'inbox' || operationPage === 'invitations';
-  if (!loading && !error && ((!school && !showCreate) || (!settings && invitationPage))) return <DashboardShell school={school} page={school ? operationPage : 'inbox'} locked={locked} loggingOut={loggingOut} onLogout={logout} onNavigate={navigate}><Invitations api={api} schoolId={school && operationPage === 'invitations' && school.role === 'owner' && school.setup_complete ? school.id : undefined} onAccepted={async () => { const result = await load(); if (result?.role === 'staff') { setSettings(false); setOperationPage('home'); history.replaceState(null, '', '/dashboard/beranda'); } }} />{!school && <button className="btn btn-quiet" onClick={() => { setShowCreate(true); setSettings(true); }}>Buat sekolah</button>}</DashboardShell>;
+  const denied = school && school.role !== 'owner' && (settings || operationPage === 'invitations');
+  if (!loading && !error && school && (denied || operationPage === 'not-found' || (locked && school.role === 'staff'))) return <AccessPage school={school} locked={locked} kind={operationPage === 'not-found' ? 'not-found' : locked && !denied ? 'setup' : 'denied'} loggingOut={loggingOut} onLogout={logout} onNavigate={navigate} />;
+  if (!loading && !error && ((!school && !showCreate) || (!settings && invitationPage))) return <DashboardShell school={school} page={school ? operationPage : 'inbox'} locked={locked} loggingOut={loggingOut} onLogout={logout} onNavigate={navigate}><Invitations api={api} schoolId={school && operationPage === 'invitations' && school.role === 'owner' && school.setup_complete ? school.id : undefined} onAccepted={async () => { const result = await load(); if (result?.role === 'staff') { setSettings(false); setOperationPage('home'); history.replaceState(null, '', '/dashboard/beranda'); } }} />{!school && <button className="btn btn-quiet" onClick={() => navigate('settings')}>Buat sekolah</button>}</DashboardShell>;
   if (!loading && !error && !locked && !settings) return <LiveApp school={school!} api={api} initialPage={operationPage} onNavigate={navigate} loggingOut={loggingOut} onLogout={logout} />;
   return <DashboardShell school={school} page="settings" locked={loading || !!error || locked} loggingOut={loggingOut} onLogout={logout} onNavigate={navigate}>
     {loading ? <p id="setup-reason" role="status">Memuat akses sekolah...</p> : error ? <section className="panel panel-pad"><p id="setup-reason" role="alert">{error}</p><button className="btn btn-primary" onClick={load}>Coba lagi</button>{unauthorized && <button className="btn btn-quiet" onClick={logout}>Masuk ulang</button>}</section>
       : <><div className="page-heading"><div><div className="eyebrow">PENGATURAN</div><h1>Pengaturan Sekolah</h1><p className="page-sub">{school ? 'Profil dan jam operasional sekolah dalam WITA.' : 'Buat sekolah dengan mengisi profil dan jam operasional (WITA).'}</p></div></div>
-        {!school && <button className="btn btn-quiet" onClick={() => setShowCreate(false)}>Lihat inbox undangan</button>}
-        {locked ? <p id="setup-reason" className="notice">Lengkapi data sekolah terlebih dahulu.</p> : <button className="inline-link" onClick={() => navigate(operationPage)}>Kembali ke operasional</button>}
+        {!school && <button className="btn btn-quiet" onClick={() => navigate('inbox')}>Lihat inbox undangan</button>}
+        {locked ? <p id="setup-reason" className="notice">Lengkapi data sekolah terlebih dahulu untuk mengakses menu operasional.</p> : <button className="inline-link" onClick={() => navigate(operationPage)}>Kembali ke operasional</button>}
         <SchoolProfile showHeading={false} key={school?.id || 'new'} school={school} api={api} saved={saved} onSaved={async () => { setSettings(true); setSaved(true); await load(); }} retryAccess={() => setAttempt(n => n + 1)} />
       </>}
   </DashboardShell>;

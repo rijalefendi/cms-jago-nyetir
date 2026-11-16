@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { IconSprite } from "./IconSprite";
 import type { School } from "./auth";
 import { Icon } from "./ui";
+import { BrandIcon } from "./BrandIcon";
 
 const groups = [
   {
@@ -75,7 +76,7 @@ export function DashboardShell({
     return () => clearInterval(timer);
   }, [demo?.timeZone]);
   useEffect(() => {
-    document.title = `${title} | ${school?.name || "Jagonyetir"}`;
+    document.title = `${title} | ${school?.name || "AturSetir"}`;
   }, [title, school?.name]);
   useEffect(() => {
     if (!open) return;
@@ -134,7 +135,7 @@ export function DashboardShell({
           aria-label="Navigasi dashboard"
         >
           <div className="brand">
-            <div id="brandWord" className="brand-word">Jagonyetir</div>
+            <div id="brandWord" className="brand-word platform-wordmark"><BrandIcon />AturSetir</div>
             <div className="brand-caption">Operasional kursus mobil</div>
           </div>
           <section className="school-context" aria-label="Konteks sekolah">
@@ -166,7 +167,7 @@ export function DashboardShell({
               {demo && link("reports", "Laporan", "chart")}
               {!demo && link("inbox", "Inbox Undangan", "message")}
               {!demo && school?.role === "owner" && school.setup_complete && link("invitations", "Staff", "users")}
-              {link("settings", "Pengaturan", "settings")}
+              {(demo || !school || school.role === "owner") && link("settings", "Pengaturan", "settings")}
             </div>
           </nav>
         </aside>
@@ -206,7 +207,7 @@ export function DashboardShell({
           {link("home", "Beranda", "layout", true)}
           {link("sessions", "Jadwal", "calendar", true)}
           {link("students", "Murid", "student", true)}
-          {link("settings", "Pengaturan", "settings", true)}
+          {(demo || !school || school.role === "owner") && link("settings", "Pengaturan", "settings", true)}
         </nav>
       </div>
     </div>

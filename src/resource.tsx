@@ -543,15 +543,13 @@ export function ResourceView({
           />
         </div>
         {variant === "live" && busy ? (
-          config.actionKey === "car" ? <div role="status">
+          <div role="status">
             <div className="instructor-empty">Memuat mobil…</div>
             <div className="instructor-table-scroll loading-skeleton" aria-hidden="true">
               <table className="instructor-table"><thead><tr>{[...config.columns.map(c => c.label), "Aksi"].map(label => <th key={label}>{label}</th>)}</tr></thead>
                 <tbody>{Array.from({ length: 5 }, (_, row) => <tr key={row}>{config.columns.map(c => <td key={c.key}><span className="skeleton-bar" /></td>)}<td><span className="skeleton-bar" /></td></tr>)}</tbody>
               </table>
             </div>
-          </div> : <div className="instructor-empty" role="status">
-            Memuat {config.singular.toLowerCase()}â€¦
           </div>
         ) : loadError ? (
           <div className="instructor-load-error" role="alert">

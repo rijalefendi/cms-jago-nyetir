@@ -18,7 +18,7 @@ export const authBundle = buildAuthBundle();
 const bundles = new Map([['false:false', authBundle]]);
 
 export const session = (id = 'user-a', token = 'token-a') => ({ user: { id }, access_token: token });
-export const school = { id: 'school', name: 'Sekolah', location: 'Samarinda', setup_complete: true };
+export const school = { id: 'school', name: 'Sekolah', location: 'Samarinda', setup_complete: true, role: 'owner' };
 export const response = (body, status = 200) => ({ ok: status >= 200 && status < 300, status, text: async () => JSON.stringify(body) });
 export const tick = () => new Promise(resolve => setTimeout(resolve, 40));
 export async function waitFor(predicate) {

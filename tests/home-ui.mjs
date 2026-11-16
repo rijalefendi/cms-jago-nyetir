@@ -17,6 +17,7 @@ const f = fixture({ initial: session(), fetch: async url => {
     if (fail) return response({ error: 'offline' }, 502);
     return response({ date: today, today_count: 2, pending_count: 1, overdue_count: 1, today_sessions: [rows[0], rows[2]], overdue_sessions: [rows[1]] });
   }
+  if (u.pathname.endsWith('/sessions')) return response({ items: [], total: 0 });
   return response([]);
 } });
 await waitFor(() => f.document.querySelector('.instructor-load-error'));
@@ -30,11 +31,13 @@ assert.equal(f.calls.filter(([url]) => url.endsWith('/home')).length, 2);
 assert.ok(!f.calls.some(([url]) => /\/(students|sessions)(\?|$)/.test(url)));
 assert.match(f.document.querySelector('.home-work').textContent, /Ayu/);
 assert.match(f.document.querySelector('.home-work').textContent, /30 hari terakhir/);
-assert.match(f.document.querySelector('.home-work').textContent, new RegExp(today));
+assert.ok(f.document.querySelector('.home-work').textContent.includes(new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${today}T12:00:00Z`))));
 [...f.document.querySelectorAll('button')].find(button => button.textContent === 'Muat ulang').click();
 await waitFor(() => f.calls.filter(([url]) => url.endsWith('/home')).length === 3 && f.document.querySelector('.home-metrics'));
-f.document.querySelector('.home-work button').click();
+f.document.querySelectorAll('.home-work section')[1].querySelector('button').click();
 await waitFor(() => f.dom.window.location.pathname === '/dashboard/jadwal');
+const expectedMonday = new Date(yesterday); expectedMonday.setUTCDate(expectedMonday.getUTCDate() - ((expectedMonday.getUTCDay() + 6) % 7));
+await waitFor(() => f.calls.some(([url]) => url.includes(`date_from=${expectedMonday.toISOString().slice(0, 10)}`)));
 f.close();
 const empty = fixture({ initial: session(), fetch: async url => url === '/api/v1/schools' ? response([school]) : response({ date: today, today_count: 0, pending_count: 0, overdue_count: 0, today_sessions: [], overdue_sessions: [] }) });
 await waitFor(() => empty.document.querySelector('.home-work'));

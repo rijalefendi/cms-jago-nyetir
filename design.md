@@ -1,4 +1,4 @@
-﻿# Design System: Driving School Operations Dashboard
+# Design System: Driving School Operations Dashboard
 
 **Project ID:** Local source project; no Stitch project ID is associated with this repository.  
 **Visual references:** `src/style.css`. The CSS is authoritative when this document and the implementation differ.  
@@ -16,7 +16,7 @@ A calm, compact operations workspace for driving-school staff. The design should
 
 Keep the density of the existing dashboard. Its sidebar stays visible on desktop, the topbar gives location and account context, and the main area puts the next task ahead of secondary information. Avoid decorative gradients, large hero imagery, bright full-color navigation, or motion that slows routine work. Demo content is visibly identified as simulated.
 
-The visual identity is shared by every school. A school can provide its own name and logo; the palette, Montserrat type, geometry, and spacing remain fixed. The provided `radjamengemudi` logo is a school/demo reference asset, not the Jagonyetir platform identity or a template for inventing other school logos. Public authentication screens use the text wordmark **Jagonyetir**, without a new logo symbol or a school's identity.
+The visual identity is shared by every school. A school can provide its own name and logo; the palette, Montserrat type, geometry, and spacing remain fixed. The provided `radjamengemudi` logo is a school/demo reference asset, not the AturSetir platform identity or a template for inventing other school logos. Public authentication screens use the **AturSetir** wordmark with the platform steering-wheel icon, without a school's identity.
 
 ## 2. Color Palette & Roles
 
@@ -53,7 +53,7 @@ Montserrat is the identity and UI font, with the existing system sans-serif fall
 
 ## 4. Component Stylings
 
-**App shell and navigation.** The sidebar is flat white with a thin warm divider. Its top shows the fixed **Jagonyetir** platform wordmark, followed by a separate **Sekolah aktif** block with the school's small optional logo, name, and location. The local demo's **Sekolah demo** selector lives in this block with an explicit simulation hint; it is not a live multi-membership switcher. Switching demo schools changes school identity and data context, never the platform wordmark or theme. Active links sit on soft yellow, use dark type, and have a short dark marker on the left. The topbar is nearly opaque white with a light blur and bottom border; the page title appears in the main content rather than being repeated in the topbar. Mobile keeps school context in the navigation drawer.
+**App shell and navigation.** The sidebar is flat white with a thin warm divider. Its top shows the fixed **AturSetir** platform wordmark, followed by a separate **Sekolah aktif** block with the school's small optional logo, name, and location. The local demo's **Sekolah demo** selector lives in this block with an explicit simulation hint; it is not a live multi-membership switcher. Switching demo schools changes school identity and data context, never the platform wordmark or theme. Active links sit on soft yellow, use dark type, and have a short dark marker on the left. The topbar is nearly opaque white with a light blur and bottom border; the page title appears in the main content rather than being repeated in the topbar. Mobile keeps school context in the navigation drawer.
 
 **Icons.** Use locally embedded Hugeicons Free Stroke Rounded SVGs in the shared shell sprite, with the existing 18px/16px/22px sizes and inherited dashboard stroke weight. Each navigation destination has a distinct icon; Murid uses Student and Instruktur uses Teacher. Desktop and mobile reuse the same icon for the same destination. Preserve decorative `aria-hidden` icons and visible menu labels. The MIT license ships at `public/licenses/hugeicons.txt`.
 
@@ -123,7 +123,7 @@ Public booking, payments, SIM processing, and automatic WhatsApp ingestion are o
 
 ### 7.1 Shared auth presentation
 
-- Use the shared split auth layout for login, registration and email-verification feedback: the **Jagonyetir** wordmark and centered intro sit on the charcoal left panel, the form sits on white at right. Keep the animated Hugeicons car and road in a separate bottom row below the intro, clipped away from text; reduced motion keeps the car still. Below 768px, stack panels with a compact ~220px header: 20px wordmark, 24px two-line heading, no intro paragraph, 12px row gaps and a separate 96px road area. Scale road and car together to 60%, retaining the 9-second loop and reduced-motion handling. Start all auth forms 24px below the header with 24px horizontal padding; allow natural scrolling for signup, errors and the mobile keyboard. Use Montserrat, the warm gray canvas, white panels, charcoal primary buttons, and small yellow accents from the existing styles. Do not introduce a symbol logo, marketing hero, school logo, sidebar, or dashboard navigation on public auth screens.
+- Use the shared split auth layout for login, registration and email-verification feedback: the **AturSetir** wordmark and centered intro sit on the charcoal left panel, the form sits on white at right. Keep the animated Hugeicons car and road in a separate bottom row below the intro, clipped away from text; reduced motion keeps the car still. Below 768px, stack panels with a compact ~220px header: 20px wordmark, 24px two-line heading, no intro paragraph, 12px row gaps and a separate 96px road area. Scale road and car together to 60%, retaining the 9-second loop and reduced-motion handling. Start all auth forms 24px below the header with 24px horizontal padding; allow natural scrolling for signup, errors and the mobile keyboard. Use Montserrat, the warm gray canvas, white panels, charcoal primary buttons, and small yellow accents from the existing styles. Do not introduce a marketing hero, school logo, sidebar, or dashboard navigation on public auth screens.
 - Login shows a right-aligned `Lupa password?` link on the same row as the `Kata sandi` label. `/lupa-password` shares the auth layout, with email-request, recovery-password, expired-link and success states.
 - Use Indonesian headings and actions: **Masuk**, **Daftar akun**, **Verifikasi email**, **Lupa password**, and **Reset password**. The login screen is shared by owners and staff; school identity appears only after access context is known.
 - Reuse the existing labelled fields, buttons, panels, focus treatment, and inline errors. Provide a visible primary action, loading/success/error text, and prevent duplicate submissions. Keep forms usable on mobile and by keyboard; do not rely on placeholders, color, or hover alone.
@@ -170,15 +170,15 @@ Follow the handoff's payload and response shapes: POST/PUT send nested `weekday`
 | --- | --- |
 | Authenticated, no school | Complete-profile create form; operational navigation locked |
 | Incomplete school, owner | Editable Pengaturan Sekolah; all other menus locked, including Staf |
-| Incomplete school, staff | Read-only Pengaturan Sekolah and **Owner perlu melengkapi data sekolah**; operational navigation locked |
+| Incomplete school, staff | **Owner perlu melengkapi data sekolah**; operational navigation locked, Pengaturan Sekolah and Staf inaccessible |
 | Complete school, owner | Operational menus, editable Pengaturan Sekolah, and Staf once its backend contract exists |
-| Complete school, staff | Operational menus and read-only Pengaturan Sekolah; no Staf management |
+| Complete school, staff | Operational menus; Pengaturan Sekolah and Staf inaccessible |
 | Role unavailable | Do not assume owner or enable owner-only actions; show that access context could not be loaded, with Coba lagi |
 
-- While setup is incomplete, keep other navigation entries visible but non-activatable, with the visible explanation **Lengkapi data sekolah terlebih dahulu**. Keep Pengaturan Sekolah and Keluar available. Apply the same gate to mobile navigation; the locked menu list must not bypass role restrictions.
+- While setup is incomplete, keep other navigation entries visible but non-activatable, with a visible explanation. Keep Pengaturan Sekolah available to the owner and Keluar available to everyone. Apply the same gate to mobile navigation; the locked menu list must not bypass role restrictions.
 - Expose locked state and its reason to keyboard and assistive-technology users; do not rely on a hover tooltip. Guard routes and data loading as well as clicks: deep links and Back/Forward cannot render operational pages or fetch their data while setup is incomplete.
 - After a successful POST/PUT, reload school context. Only an authoritative `setup_complete: true` unlocks permitted menus. Stay on Pengaturan Sekolah and show success; do not force navigation away. If saving or reloading fails, keep menus locked and provide a retry path.
-- If the API later reports `403` with `code: "school_setup_required"`, invalidate operational access and route to Pengaturan Sekolah without logging out. Frontend gating supplements Go authorization and database RLS; it does not replace them.
+- If the API later reports `403` with `code: "school_setup_required"`, invalidate operational access without logging out. Owners can complete Pengaturan Sekolah; staff see that the owner must complete it. Frontend gating supplements Go authorization and database RLS; it does not replace them.
 
 **Role contract (available in v1).** `GET /api/schools` returns the current membership role `owner` or `staff`. Settings does not return role; use bootstrap context. Missing roles never grant owner access.
 
@@ -204,7 +204,7 @@ The page contains an email invitation form, active staff list, and invitation st
 - The recipient opens an invitation magic link and explicitly confirms joining before membership becomes active. New staff set a password during activation for subsequent email/password login; existing accounts retain their password.
 - Finish or reject the invitation flow before ordinary school bootstrap, so an invited user with no membership is not mistakenly directed to create a school. An expired, invalid, wrong-account, or consumed invitation must not activate membership.
 - Enforce one account/one school during acceptance, including concurrent requests. An account already attached to another school cannot gain a second membership; frontend checks alone are insufficient.
-- Role changes, revoking staff access, canceling invitations, social login, and a new logo design are outside this version.
+- Role changes, revoking staff access, canceling invitations, and social login are outside this version.
 
 ### 7.6 Acceptance and delivery checks
 

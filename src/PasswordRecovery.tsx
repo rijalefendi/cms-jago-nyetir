@@ -8,6 +8,7 @@ export function PasswordRecovery({ reset, validSession, restoreError, onNavigate
   const pending = useRef(false);
   const [sent, setSent] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const unavailable = reset && (!validSession || Boolean(restoreError));
@@ -50,12 +51,19 @@ export function PasswordRecovery({ reset, validSession, restoreError, onNavigate
   return <LoginLayout><section className="panel panel-pad auth-panel">
     <h1>{saved ? 'Kata sandi diperbarui' : reset ? 'Atur kata sandi baru' : sent ? 'Periksa email Anda' : 'Lupa password?'}</h1>
     <p>{saved ? 'Silakan masuk kembali menggunakan kata sandi baru.' : unavailable ? 'Tautan pemulihan tidak valid atau sudah kedaluwarsa. Minta tautan baru untuk melanjutkan.' : reset ? 'Buat kata sandi baru dengan minimal 8 karakter.' : sent ? 'Jika email terdaftar, tautan pemulihan akan dikirim. Periksa juga folder spam.' : 'Masukkan email akun Anda untuk menerima tautan pemulihan kata sandi.'}</p>
-    {!sent && !saved && !unavailable && <form className="auth-form" noValidate onSubmit={submit} aria-busy={busy}>
-      {reset ? <><label className="form-field">Kata sandi baru<input name="password" type="password" required minLength={8} autoComplete="new-password" disabled={busy} aria-invalid={Boolean(fieldErrors.password)} aria-describedby={fieldErrors.password ? 'recovery-password-error' : undefined} />{fieldErrors.password && <small id="recovery-password-error" className="field-error" role="alert">{fieldErrors.password}</small>}</label><label className="form-field">Konfirmasi kata sandi<input name="confirm" type="password" required autoComplete="new-password" disabled={busy} aria-invalid={Boolean(fieldErrors.confirm)} aria-describedby={fieldErrors.confirm ? 'recovery-confirm-error' : undefined} />{fieldErrors.confirm && <small id="recovery-confirm-error" className="field-error" role="alert">{fieldErrors.confirm}</small>}</label></> : <label className="form-field">Email<input name="email" type="email" required autoComplete="email" disabled={busy} aria-invalid={Boolean(fieldErrors.email)} aria-describedby={fieldErrors.email ? 'recovery-email-error' : undefined} />{fieldErrors.email && <small id="recovery-email-error" className="field-error" role="alert">{fieldErrors.email}</small>}</label>}
+    {!sent && !saved && !unavailable && <form className="auth-form" noValidate onSubmit={submit} aria-busy={busy} onChange={e => {
+      const form = e.currentTarget;
+      const password = (form.elements.namedItem('password') as HTMLInputElement | null)?.value || '';
+      const confirm = (form.elements.namedItem('confirm') as HTMLInputElement | null)?.value || '';
+      const email = form.elements.namedItem('email') as HTMLInputElement | null;
+      setFieldErrors(current => ({ ...current, ...(password.length >= 8 ? { password: '' } : {}), ...(confirm && confirm === password ? { confirm: '' } : {}), ...(email?.value.trim() && email.validity.valid ? { email: '' } : {}) }));
+    }}>
+      {reset ? <><label className="form-field">Kata sandi baru<input name="password" type={showPassword ? "text" : "password"} required minLength={8} autoComplete="new-password" disabled={busy} aria-invalid={Boolean(fieldErrors.password)} aria-describedby={fieldErrors.password ? 'recovery-password-error' : undefined} />{fieldErrors.password && <small id="recovery-password-error" className="field-error" role="alert">{fieldErrors.password}</small>}</label><label className="form-field">Konfirmasi kata sandi<input name="confirm" type={showPassword ? "text" : "password"} required autoComplete="new-password" disabled={busy} aria-invalid={Boolean(fieldErrors.confirm)} aria-describedby={fieldErrors.confirm ? 'recovery-confirm-error' : undefined} />{fieldErrors.confirm && <small id="recovery-confirm-error" className="field-error" role="alert">{fieldErrors.confirm}</small>}</label></> : <label className="form-field">Email<input name="email" type="email" required autoComplete="email" disabled={busy} aria-invalid={Boolean(fieldErrors.email)} aria-describedby={fieldErrors.email ? 'recovery-email-error' : undefined} />{fieldErrors.email && <small id="recovery-email-error" className="field-error" role="alert">{fieldErrors.email}</small>}</label>}
+      {reset && <label><input type="checkbox" checked={showPassword} onChange={e => setShowPassword(e.target.checked)} disabled={busy} /> Tampilkan kata sandi</label>}
       {error && <p role="alert" className="notice auth-error">{error}</p>}
       <Button variant="primary" type="submit" disabled={busy}>{busy ? 'Memproses…' : reset ? 'Simpan kata sandi' : 'Kirim tautan pemulihan'}</Button>
     </form>}
-    {reset && !saved && <Button onClick={() => onNavigate('/lupa-password')}>Minta tautan baru</Button>}
+    {(unavailable || (reset && !saved && error)) && <Button onClick={() => onNavigate('/lupa-password')}>Minta tautan baru</Button>}
     {(sent || saved || unavailable) && error && <p className="notice auth-error" role="alert">{error}</p>}
     {(sent || saved) && <p role="status" className="sr-only">{saved ? 'Kata sandi berhasil diperbarui.' : 'Permintaan tautan pemulihan berhasil diproses.'}</p>}
     <p className="auth-switch"><Button disabled={busy} onClick={backToLogin}>Kembali ke Masuk</Button></p>

@@ -1,6 +1,34 @@
 import assert from 'node:assert/strict';
 import { fixture, response, school, session, submit, tick, waitFor } from './auth-fixture.mjs';
 
+for (const [path, heading] of [['akses-ditolak', 'Akses ditolak'], ['tidak-ditemukan', 'Halaman tidak ditemukan']]) {
+  const previewPage = fixture({ url: `http://localhost/preview/${path}` });
+  await waitFor(() => previewPage.document.querySelector('h1')?.textContent === heading);
+  assert.equal(previewPage.calls.length, 0);
+  previewPage.close();
+  const productionPage = fixture({ production: true, url: `http://localhost/preview/${path}` });
+  await waitFor(() => productionPage.document.querySelector('h1')?.textContent === 'Masuk');
+  productionPage.close();
+}
+
+for (const [path, heading] of [['pengaturan', 'Akses ditolak'], ['undangan-staff', 'Akses ditolak'], ['tidak-ada', 'Halaman tidak ditemukan']]) {
+  const restricted = fixture({ initial: session(), url: `http://localhost/dashboard/${path}`, fetch: async () => response([{ ...school, role: 'staff', setup_complete: true }]) });
+  await waitFor(() => restricted.document.querySelector('h1')?.textContent === heading);
+  assert.equal(restricted.document.querySelector('[data-live-page="settings"]'), null);
+  assert.equal(restricted.document.querySelector('[data-live-page="invitations"]'), null);
+  assert.ok(restricted.calls.every(([url]) => !url.endsWith('/settings') && !url.endsWith('/invitations')));
+  restricted.document.querySelector('.access-page button').click();
+  await waitFor(() => restricted.dom.window.location.pathname === '/dashboard/beranda');
+  restricted.dom.window.history.back();
+  await waitFor(() => restricted.document.querySelector('h1')?.textContent === heading);
+  restricted.close();
+}
+const incompleteStaff = fixture({ initial: session(), fetch: async () => response([{ ...school, role: 'staff', setup_complete: false }]) });
+await waitFor(() => /Owner perlu melengkapi data sekolah/.test(incompleteStaff.document.body.textContent));
+assert.equal(incompleteStaff.document.querySelector('[data-live-page="settings"]'), null);
+assert.ok(incompleteStaff.calls.every(([url]) => !url.endsWith('/settings')));
+incompleteStaff.close();
+
 // Login and registration share the selected layout in development and production.
 for (const production of [false, true]) {
   const auth = fixture({ production, url: 'http://localhost/login?variant=floating' });
@@ -57,12 +85,21 @@ assert.equal(expired.dom.window.location.search, '');
 expired.close();
 const recovery = fixture({ initial: session(), url: 'http://localhost/lupa-password?reset=1#access_token=sensitive&type=recovery' });
 await waitFor(() => recovery.document.querySelector('[name="confirm"]'));
+const recoveryToggle = recovery.document.querySelector('input[type="checkbox"]');
+recoveryToggle.click();
+await waitFor(() => recovery.document.querySelector('[name="password"]').type === 'text');
+assert.equal(recovery.document.querySelector('[name="confirm"]').type, 'text');
+recoveryToggle.click();
 assert.equal(recovery.calls.length, 0, 'Recovery never bootstraps school data');
 assert.equal(recovery.dom.window.location.hash, '');
 let updated;
 recovery.auth.updateUser = async values => { updated = values; return { error: null }; };
 submit(recovery, { password: 'long-password', confirm: 'different' });
 await waitFor(() => recovery.document.querySelector('[role="alert"]'));
+const confirmInput = recovery.document.querySelector('[name="confirm"]');
+Object.getOwnPropertyDescriptor(recovery.dom.window.HTMLInputElement.prototype, 'value').set.call(confirmInput, 'long-password');
+confirmInput.dispatchEvent(new recovery.dom.window.Event('input', { bubbles: true }));
+await waitFor(() => recovery.document.querySelector('[name="confirm"]').getAttribute('aria-invalid') === 'false');
 assert.equal(updated, undefined);
 submit(recovery, { password: 'long-password', confirm: 'long-password' });
 await waitFor(() => recovery.document.querySelector('h1')?.textContent === 'Kata sandi diperbarui');
@@ -146,6 +183,8 @@ assert.equal(f.document.querySelector('h1').textContent, 'Masuk');
 f.close();
 f = fixture({ initial: session(), url: 'http://localhost/login' });
 await waitFor(() => f.dom.window.location.pathname === '/dashboard/beranda');
+await waitFor(() => f.document.querySelector('h1'));
+assert.equal(f.document.querySelector('h1').textContent, 'Beranda');
 f.close();
 
 // Password visibility is always available; signup shows a live length checklist.
@@ -418,6 +457,25 @@ assert.equal(f.document.querySelector('form'), null);
 assert.ok([...f.document.querySelectorAll('button')].some(button => button.textContent === 'Coba lagi'));
 f.close();
 
+// A new account opens school setup, while the invitation inbox remains accessible.
+for (const existing of [false, true]) {
+  const onboarding = fixture({ initial: session(), url: 'http://localhost/login', fetch: async url => url.endsWith('/settings') ? response([{ ...school, weekday_closed: true, weekend_closed: true }]) : response(existing ? [{ ...school, setup_complete: false }] : []) });
+  await waitFor(() => onboarding.document.querySelector('h1')?.textContent === 'Pengaturan Sekolah');
+  assert.equal(onboarding.dom.window.location.pathname, '/dashboard/pengaturan');
+  assert.match(onboarding.document.body.textContent, /Lengkapi data sekolah/);
+  onboarding.close();
+}
+const newOwner = fixture({ initial: session(), url: 'http://localhost/dashboard/pengaturan', fetch: async () => response([]) });
+await waitFor(() => newOwner.document.querySelector('h1'));
+assert.equal(newOwner.document.querySelector('h1').textContent, 'Pengaturan Sekolah');
+assert.ok(newOwner.document.querySelector('[name="name"]'));
+[...newOwner.document.querySelectorAll('button')].find(button => button.textContent === 'Lihat inbox undangan').click();
+await waitFor(() => newOwner.document.querySelector('h1')?.textContent === 'Inbox Undangan');
+assert.equal(newOwner.dom.window.location.pathname, '/dashboard/inbox-undangan');
+newOwner.dom.window.history.back();
+await waitFor(() => newOwner.document.querySelector('h1')?.textContent === 'Pengaturan Sekolah');
+newOwner.close();
+
 // Only a successful empty list permits creation, with the complete profile payload.
 let created;
 let exists = false;
@@ -489,7 +547,7 @@ f.close();
 // Unknown role never enables updates; setup gate does not fetch operational data.
 f = fixture({ initial: session(), fetch: async url => response(url.endsWith('/settings')
   ? [{ ...school, weekday_closed: false, weekday_open: '08:00:00', weekday_close: '17:00:00', weekend_closed: true }]
-  : [{ ...school, setup_complete: false }]) });
+  : [{ ...school, setup_complete: false, role: undefined }]) });
 await waitFor(() => f.document.querySelector('[name="weekday_open"]'));
 assert.match(f.document.body.textContent, /Owner perlu melengkapi/);
 assert.equal(f.document.querySelector('[name="weekday_open"]').value, '08:00');
