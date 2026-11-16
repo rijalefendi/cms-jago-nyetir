@@ -156,8 +156,8 @@ function Login({ error: restoreError, clearError, retry, onForgot }: { onForgot:
     finally { pending.current = false; setBusy(false); }
   }
   return <LoginLayout><section className="panel panel-pad auth-panel">
-    <h1>{sent ? 'Verifikasi email' : mode === 'login' ? 'Masuk' : 'Daftar akun'}</h1>
-    <p>{sent ? 'Periksa email untuk memverifikasi akun. Setelah terverifikasi, kembali untuk masuk.' : mode === 'signup' ? 'Daftar sebagai pemilik untuk menyiapkan sekolah. Staf bergabung melalui undangan.' : 'Kelola operasional sekolah mengemudi Anda.'}</p>
+    <div className="auth-intro"><h1>{sent ? 'Verifikasi email' : mode === 'login' ? 'Masuk' : 'Daftar akun'}</h1>
+    <p>{sent ? 'Periksa email untuk memverifikasi akun. Setelah terverifikasi, kembali untuk masuk.' : mode === 'signup' ? 'Daftar sebagai pemilik untuk menyiapkan sekolah. Staf bergabung melalui undangan.' : 'Masuk untuk melanjutkan pengelolaan sekolah Anda.'}</p></div>
     {!sent && <form ref={formRef} noValidate onSubmit={submit} onBlur={blur} onChange={change} className="auth-form" aria-busy={busy}>
       <label className="form-field">Email<input name="email" type="email" autoComplete="email" required disabled={busy} aria-invalid={Boolean(fields.email)} aria-describedby={fields.email ? 'auth-email-error' : undefined} />{fields.email && <small id="auth-email-error" className="auth-field-error" role="alert">{fields.email}</small>}</label>
       <div className="form-field">

@@ -514,7 +514,8 @@
 .login-layout{min-height:100dvh;position:relative;isolation:isolate}
 .login-layout .auth-panel{width:100%;max-width:400px;margin:0;border:0;box-shadow:none;background:transparent;padding:0}
 .login-layout .auth-panel h1{font-size:30px;letter-spacing:-1px;margin-bottom:12px}
-.login-layout .auth-panel > p{color:var(--text-muted)}
+.login-layout .auth-panel > p,.login-layout .auth-intro p{color:var(--text-muted)}
+.login-layout .auth-intro{min-height:100px}
 .login-layout .auth-form{gap:22px;margin-top:32px}
 .login-layout .auth-form > .btn{min-height:48px;margin-top:4px}
 .login-layout :is(button,input,a):focus-visible{outline:3px solid var(--focus-ring);outline-offset:3px}

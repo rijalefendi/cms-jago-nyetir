@@ -9,7 +9,7 @@ export function LoginLayout({ children }: { children: React.ReactNode }) {
     <IconSprite />
     <aside className="login-intro">
       {wordmark}
-      <div className="login-intro-content"><div className="login-intro-copy"><h2>Jadwal kursus,<br /><span className="login-highlight">lebih mudah diatur.</span></h2><p>Kelola jadwal murid, instruktur, dan mobil dalam satu tempat.</p></div></div>
+      <div className="login-intro-content"><div className="login-intro-copy"><h2>Jadwal kursus,<br /><span className="login-highlight">lebih tertata.</span></h2><p>Murid, instruktur, dan mobil dalam satu tempat.</p></div></div>
       <div className="login-road-area" aria-hidden="true"><div className="login-route" style={{ '--login-drive-path': `path('${drivePath}')` } as React.CSSProperties}>
         <svg className="login-road" viewBox="0 0 560 180"><path className="login-road-edge" d={drivePath} /><path className="login-road-surface" d={drivePath} /></svg>
         <div className="login-car"><Icon name="car-driving" /></div>

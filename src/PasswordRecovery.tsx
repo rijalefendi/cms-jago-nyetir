@@ -49,8 +49,8 @@ export function PasswordRecovery({ reset, validSession, restoreError, onNavigate
     onNavigate('/login');
   }
   return <LoginLayout><section className="panel panel-pad auth-panel">
-    <h1>{saved ? 'Kata sandi diperbarui' : reset ? 'Atur kata sandi baru' : sent ? 'Periksa email Anda' : 'Lupa password?'}</h1>
-    <p>{saved ? 'Silakan masuk kembali menggunakan kata sandi baru.' : unavailable ? 'Tautan pemulihan tidak valid atau sudah kedaluwarsa. Minta tautan baru untuk melanjutkan.' : reset ? 'Buat kata sandi baru dengan minimal 8 karakter.' : sent ? 'Jika email terdaftar, tautan pemulihan akan dikirim. Periksa juga folder spam.' : 'Masukkan email akun Anda untuk menerima tautan pemulihan kata sandi.'}</p>
+    <div className="auth-intro"><h1>{saved ? 'Kata sandi diperbarui' : reset ? 'Atur kata sandi baru' : sent ? 'Periksa email Anda' : 'Lupa password?'}</h1>
+    <p>{saved ? 'Silakan masuk kembali menggunakan kata sandi baru.' : unavailable ? 'Tautan pemulihan tidak valid atau sudah kedaluwarsa. Minta tautan baru untuk melanjutkan.' : reset ? 'Buat kata sandi baru dengan minimal 8 karakter.' : sent ? 'Jika email terdaftar, tautan pemulihan akan dikirim. Periksa juga folder spam.' : 'Masukkan email akun Anda untuk menerima tautan pemulihan kata sandi.'}</p></div>
     {!sent && !saved && !unavailable && <form className="auth-form" noValidate onSubmit={submit} aria-busy={busy} onChange={e => {
       const form = e.currentTarget;
       const password = (form.elements.namedItem('password') as HTMLInputElement | null)?.value || '';
@@ -66,6 +66,6 @@ export function PasswordRecovery({ reset, validSession, restoreError, onNavigate
     {(unavailable || (reset && !saved && error)) && <Button onClick={() => onNavigate('/lupa-password')}>Minta tautan baru</Button>}
     {(sent || saved || unavailable) && error && <p className="notice auth-error" role="alert">{error}</p>}
     {(sent || saved) && <p role="status" className="sr-only">{saved ? 'Kata sandi berhasil diperbarui.' : 'Permintaan tautan pemulihan berhasil diproses.'}</p>}
-    <p className="auth-switch"><Button disabled={busy} onClick={backToLogin}>Kembali ke Masuk</Button></p>
+    <p className="auth-switch"><button type="button" className="inline-link" disabled={busy} onClick={backToLogin}>Kembali ke Masuk</button></p>
   </section></LoginLayout>;
 }
