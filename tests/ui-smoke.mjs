@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 
 const dom = new JSDOM('<!doctype html><html><head></head><body><div id="root"></div></body></html>', {
-  url: 'http://localhost/schools/radja/dashboard/dashboard',
+  url: 'http://localhost/schools/radja/dasbor/dasbor',
   runScripts: 'dangerously',
   pretendToBeVisual: true,
 });
@@ -57,22 +57,29 @@ await tick();
 assert.equal(document.querySelector('[data-react-page]').dataset.reactPage, 'SchedulePage');
 assert.match(dom.window.location.pathname, /\/jadwal$/);
 const picker = document.getElementById('schoolPicker');
+const sidebarToggle = document.querySelector('.sidebar-toggle');
+assert.ok(document.getElementById('sidebar').contains(sidebarToggle));
+assert.equal(sidebarToggle.getAttribute('aria-expanded'), 'true');
+sidebarToggle.click();
+await tick();
+assert.equal(sidebarToggle.getAttribute('aria-expanded'), 'false');
+assert.ok(document.querySelector('.app').classList.contains('sidebar-collapsed'));
+assert.equal(document.querySelector('[data-page="dashboard"]').getAttribute('aria-label'), 'Beranda');
+sidebarToggle.click();
+await tick();
+assert.equal(sidebarToggle.getAttribute('aria-expanded'), 'true');
 assert.equal(document.getElementById('brandWord').textContent, 'AturSetir');
-assert.equal(document.getElementById('schoolName').textContent, 'radjamengemudi');
+assert.equal(document.querySelector('.sidebar-school-name').textContent, 'radjamengemudi');
 assert.ok(document.getElementById('sidebar').contains(picker), 'demo school picker belongs to school context');
 assert.equal(picker.labels[0].querySelector('span').textContent, 'Sekolah demo');
 assert.equal(document.querySelector('.topbar .school-picker'), null);
-assert.equal(document.querySelector('.brand-logo').alt, '');
 picker.value = 'demo-b';
 picker.dispatchEvent(new Event('change', { bubbles: true }));
 await tick();
-assert.equal(document.getElementById('brandWord').textContent, 'AturSetir');
-assert.equal(document.getElementById('schoolName').textContent, 'Sekolah Mengemudi Contoh');
-assert.equal(document.getElementById('schoolLocation').textContent, 'Jakarta');
-assert.equal(document.querySelector('.brand-logo').hidden, true);
-assert.equal(document.querySelector('.brand-logo').hasAttribute('src'), false);
-assert.match(document.getElementById('headerClock').textContent, /WIB/);
-assert.equal(dom.window.location.pathname, '/dashboard/jadwal');
+assert.equal(document.querySelector('.sidebar-school-name').textContent, 'Sekolah Mengemudi Contoh');
+assert.equal(document.getElementById('schoolLocation'), null);
+assert.equal(document.getElementById('headerClock'), null);
+assert.equal(dom.window.location.pathname, '/dasbor/jadwal');
 assert.equal(document.querySelector('[data-page="permintaan"]'), null);
 picker.value = 'radja';
 picker.dispatchEvent(new Event('change', { bubbles: true }));

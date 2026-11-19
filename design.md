@@ -16,7 +16,7 @@ A calm, compact operations workspace for driving-school staff. The design should
 
 Keep the density of the existing dashboard. Its sidebar stays visible on desktop, the topbar gives location and account context, and the main area puts the next task ahead of secondary information. Avoid decorative gradients, large hero imagery, bright full-color navigation, or motion that slows routine work. Demo content is visibly identified as simulated.
 
-The visual identity is shared by every school. A school can provide its own name and logo; the palette, Montserrat type, geometry, and spacing remain fixed. The provided `radjamengemudi` logo is a school/demo reference asset, not the AturSetir platform identity or a template for inventing other school logos. Public authentication screens use the **AturSetir** wordmark with the platform steering-wheel icon, without a school's identity.
+The visual identity is shared by every school. A school can provide its own name and logo; the palette, typography, geometry, and spacing remain fixed. The provided `radjamengemudi` logo is a school/demo reference asset, not the AturSetir platform identity or a template for inventing other school logos. Public authentication screens use the **AturSetir** wordmark with the platform steering-wheel icon, without a school's identity.
 
 ## 2. Color Palette & Roles
 
@@ -42,7 +42,7 @@ Use charcoal for normal primary actions. Yellow signals brand or selection, not 
 
 ## 3. Typography Rules
 
-Montserrat is the identity and UI font, with the existing system sans-serif fallback. The base interface is medium-weight **14px with 1.55 line height**. Preserve the compact hierarchy rather than replacing it with larger marketing typography.
+Source Sans 3 is the UI font, with a system sans-serif fallback; Montserrat is reserved for the AturSetir wordmark. The base interface is medium-weight **14px with 1.55 line height**. Preserve the compact hierarchy rather than replacing it with larger marketing typography.
 
 - Page titles are bold and tight: **28px, weight 800**, with slightly negative tracking; **23px** on narrow mobile screens.
 - Section titles are **17px, weight 800**; panel titles are **15px, weight 800**. Labels and navigation use smaller, firm weights so the page title remains dominant.
@@ -53,7 +53,7 @@ Montserrat is the identity and UI font, with the existing system sans-serif fall
 
 ## 4. Component Stylings
 
-**App shell and navigation.** The sidebar is flat white with a thin warm divider. Its top shows the fixed **AturSetir** platform wordmark, followed by a separate **Sekolah aktif** block with the school's small optional logo, name, and location. The local demo's **Sekolah demo** selector lives in this block with an explicit simulation hint; it is not a live multi-membership switcher. Switching demo schools changes school identity and data context, never the platform wordmark or theme. Active links sit on soft yellow, use dark type, and have a short dark marker on the left. The topbar is nearly opaque white with a light blur and bottom border; the page title appears in the main content rather than being repeated in the topbar. Mobile keeps school context in the navigation drawer.
+**App shell and navigation.** The sidebar is flat white with a thin warm divider. Its top shows the yellow steering-wheel icon and **AturSetir**, followed by the school name and the desktop collapse control. The local demo's **Sekolah demo** selector follows; it is not a live multi-membership switcher. Switching demo schools changes school identity and data context. Active links sit on soft yellow, use dark type, and have a short dark marker on the left. The topbar is nearly opaque white with a light blur and bottom border; the page title appears in the main content rather than being repeated in the topbar. Mobile keeps school context in the navigation drawer.
 
 **Icons.** Use locally embedded Hugeicons Free Stroke Rounded SVGs in the shared shell sprite, with the existing 18px/16px/22px sizes and inherited dashboard stroke weight. Each navigation destination has a distinct icon; Murid uses Student and Instruktur uses Teacher. Desktop and mobile reuse the same icon for the same destination. Preserve decorative `aria-hidden` icons and visible menu labels. The MIT license ships at `public/licenses/hugeicons.txt`.
 
@@ -83,7 +83,7 @@ Match the compact dashboard controls: 44px minimum input/option height, 9px corn
 
 ## 5. Layout Principles
 
-The desktop shell uses a **250px sidebar**, a **72px topbar**, and a centered workspace capped at **1504px** with **30px top / 32px side / 70px bottom** padding. The dashboard’s four metrics use a 15px grid gap. The main agenda and action panels use a 20px gap. Section spacing is compact and task-oriented, usually around 20–30px, with smaller gaps inside controls and records.
+The desktop shell uses a **250px sidebar** that can collapse to a **72px icon rail**, a **72px topbar**, and a centered workspace capped at **1504px** with **30px top / 32px side / 70px bottom** padding. The dashboard’s four metrics use a 15px grid gap. The main agenda and action panels use a 20px gap. Section spacing is compact and task-oriented, usually around 20–30px, with smaller gaps inside controls and records.
 
 Responsive behavior follows the existing breakpoints at **1280, 1060, 850, 690, and 355px**. At 1060px, the sidebar narrows to **222px** and the metric grid becomes two columns. At 850px, the topbar becomes **62px**, the sidebar turns into a drawer, and four bottom navigation tabs appear. At 690px, the workspace uses **16px side padding**, headings and metrics step down, tables become record lists, and dialogs use a bottom-sheet arrangement. The 355px rules tighten the smallest labels and controls without changing the visual language.
 
@@ -123,18 +123,18 @@ Public booking, payments, SIM processing, and automatic WhatsApp ingestion are o
 
 ### 7.1 Shared auth presentation
 
-- Use the shared split auth layout for login, registration and email-verification feedback: the **AturSetir** wordmark and centered intro sit on the charcoal left panel, the form sits on white at right. Keep the animated Hugeicons car and road in a separate bottom row below the intro, clipped away from text; reduced motion keeps the car still. Below 768px, stack panels with a compact ~220px header: 20px wordmark, 24px two-line heading, no intro paragraph, 12px row gaps and a separate 96px road area. Scale road and car together to 60%, retaining the 9-second loop and reduced-motion handling. Start all auth forms 24px below the header with 24px horizontal padding; allow natural scrolling for signup, errors and the mobile keyboard. Use Montserrat, the warm gray canvas, white panels, charcoal primary buttons, and small yellow accents from the existing styles. Do not introduce a marketing hero, school logo, sidebar, or dashboard navigation on public auth screens.
-- Login shows a right-aligned `Lupa password?` link on the same row as the `Kata sandi` label. `/lupa-password` shares the auth layout, with email-request, recovery-password, expired-link and success states.
-- Use Indonesian headings and actions: **Masuk**, **Daftar akun**, **Verifikasi email**, **Lupa password**, and **Reset password**. The login screen is shared by owners and staff; school identity appears only after access context is known.
+- Use the shared split auth layout for login, registration and email-verification feedback: the **AturSetir** wordmark and centered intro sit on the charcoal left panel, the form sits on white at right. Keep the animated Hugeicons car and road in a separate bottom row below the intro, clipped away from text; reduced motion keeps the car still. Below 768px, stack panels with a compact ~220px header: 20px wordmark, 24px two-line heading, no intro paragraph, 12px row gaps and a separate 96px road area. Scale road and car together to 60%, retaining the 9-second loop and reduced-motion handling. Start all auth forms 24px below the header with 24px horizontal padding; allow natural scrolling for signup, errors and the mobile keyboard. Use Source Sans 3 for UI text and Montserrat for the wordmark, the warm gray canvas, white panels, charcoal primary buttons, and small yellow accents from the existing styles. Do not introduce a marketing hero, school logo, sidebar, or dashboard navigation on public auth screens.
+- Login shows a right-aligned `Lupa kata sandi?` link on the same row as the `Kata sandi` label. `/lupa-kata-sandi` shares the auth layout, with email-request, recovery-password, expired-link and success states.
+- Use Indonesian headings and actions: **Masuk**, **Daftar akun**, **Verifikasi email**, **Lupa kata sandi**, and **Atur ulang kata sandi**. The login screen is shared by owners and staff; school identity appears only after access context is known.
 - Reuse the existing labelled fields, buttons, panels, focus treatment, and inline errors. Provide a visible primary action, loading/success/error text, and prevent duplicate submissions. Keep forms usable on mobile and by keyboard; do not rely on placeholders, color, or hover alone.
 - Login/signup validation stays quiet on first input and empty blur. Validate nonempty fields on blur without moving focus; keep existing field errors until corrected, clearing them as soon as input becomes valid. On submit (including Enter), validate every field and focus the first invalid input. Server errors appear only after submission; switching auth modes clears errors.
 - Show validation and field-specific server errors only beside their fields, without a duplicate summary below the title. Put general service/session errors near submit. Always show an accessible password-visibility button in login/signup. Signup has a live “Minimal 8 karakter” checkmark: gray initially, red when invalid after validation, green when met (not a guarantee that all server password policies are satisfied). Below login submit, use “Belum punya akun? Daftar gratis”.
 
-Live operations use the same sidebar, topbar, typography, spacing, icon sprite, and responsive dashboard styles as the local preview. Beranda shows three API-backed session metrics, today's agenda, and overdue sessions from the previous 30 days through today, with loading, empty and retry states. Its two work panels stack on mobile; never substitute simulated figures for live data. The live shell shows the server-provided school identity and logout; it never shows the local demo school selector. Paket uses the shared resource list and modal form, and Jadwal uses a weekly agenda with existing live forms.
+Live operations use the same sidebar, topbar, typography, spacing, icon sprite, and responsive dashboard styles as the local preview. Beranda shows two API-backed session metrics, today's agenda with its session count, and overdue sessions from the previous 30 days through today, with loading, empty and retry states. Its two work panels stack on mobile; never substitute simulated figures for live data. The live shell shows the server-provided school identity and logout; it never shows the local demo school selector. Paket uses the shared resource list and modal form, and Jadwal uses a weekly agenda with existing live forms.
 
 ### 7.2 Stage 1: email auth and session bootstrap
 
-Owners register themselves with email and password. Staff access is provisioned through the invitation flow in stage 3, not by assuming every newly registered account is staff or already belongs to a school.
+Owners register themselves at `/daftar` with email and password. Staff access is provisioned through the invitation flow in stage 3, not by assuming every newly registered account is staff or already belongs to a school.
 
 - Use one Supabase browser client for signup, password login, session restore/events, and logout, following the handoff. Use the existing client if present; otherwise use `@supabase/supabase-js`. Replace the current manual `school-token` storage when implementing this stage; do not maintain parallel token storage or refresh logic.
 - Follow the handoff's public configuration names (`VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`) and allowed callback URLs. Coordinate the existing `VITE_SUPABASE_ANON_KEY` consumers during implementation. Never place service-role/secret keys, database credentials, or auth tokens in logs or analytics.
@@ -188,8 +188,8 @@ Follow the handoff's payload and response shapes: POST/PUT send nested `weekday`
 
 Specify Supabase Auth recovery separately from stage 1's available handoff; no Go password database or custom password-reset endpoint is needed.
 
-- **Lupa password** accepts an email and shows a neutral confirmation that does not reveal whether an account exists. Document the required recovery email and allowed redirect configuration before integration.
-- A valid recovery callback enters **Reset password**, not ordinary school bootstrap. Collect the new password and confirmation, validate their match and the configured auth password policy, and display success only after Supabase accepts the update.
+- **Lupa kata sandi** accepts an email and shows a neutral confirmation that does not reveal whether an account exists. Document the required recovery email and allowed redirect configuration before integration.
+- A valid recovery callback enters **Atur ulang kata sandi**, not ordinary school bootstrap. Collect the new password and confirmation, validate their match and the configured auth password policy, and display success only after Supabase accepts the update.
 - Invalid, expired, or already-consumed links never grant access; provide an explanation and a way to request another recovery email. On success, return to the normal login/session bootstrap flow rather than inventing school access.
 - Recovery changes credentials only; it must not create or alter a school membership.
 
@@ -197,14 +197,14 @@ Specify Supabase Auth recovery separately from stage 1's available handoff; no G
 
 Add **Staf** under PENGELOLAAN for owners. It follows the setup gate: even owners cannot access it before school completion. Staff cannot open its page or call its management API.
 
-The page contains an email invitation form, active staff list, and invitation statuses **Menunggu**, **Diterima**, and **Kedaluwarsa**. Show submission/loading/success/error states without claiming that sending an invitation has already activated membership.
+The owner page at `/dasbor/staff` contains an email activation form and one searchable list combining current staff memberships with unaccepted activation requests. Accepted requests never substitute for current membership. Search covers email across all loaded pages; local pagination shows ten rows. Active staff can have their school access removed after confirmation through DELETE members/{user_id}; pending activations can be cancelled. User-facing copy uses staff and activation terminology. Show submission/loading/success/error states without claiming that sending an invitation has already activated membership.
 
-**Backend contract dependency (not available).** Define authorized invitation creation/email delivery, staff/status listing, and invitation acceptance for both new and existing accounts before implementation. The legacy direct-add members endpoint grants access to a verified account immediately and must not substitute for pending invitation acceptance. Do not invent working endpoints or expose privileged Supabase credentials in the browser.
+**Backend contract.** Owners create invitations with email only through POST `/api/v1/schools/{school_id}/invitations`, list their history and cancel pending invitations. Supabase Auth Admin delivery is backend-only; frontend uses only the public key. A successful create means delivery was requested, not received. Existing Supabase accounts return `409 account_already_registered` and are not supported yet. No recipient inbox exists (`GET /api/v1/invitations` returns 410).
 
-- The recipient opens an invitation magic link and explicitly confirms joining before membership becomes active. New staff set a password during activation for subsequent email/password login; existing accounts retain their password.
+- The recipient opens `/auth/invitation?invitation_id=...`, restores the Supabase session and sets a password, then explicitly confirms membership with POST `/api/v1/invitations/{id}/accept` using the current Supabase access token and no body. Reload schools before entering the dashboard. Callback IDs and Auth metadata never authorize membership.
 - Finish or reject the invitation flow before ordinary school bootstrap, so an invited user with no membership is not mistakenly directed to create a school. An expired, invalid, wrong-account, or consumed invitation must not activate membership.
 - Enforce one account/one school during acceptance, including concurrent requests. An account already attached to another school cannot gain a second membership; frontend checks alone are insufficient.
-- Role changes, revoking staff access, canceling invitations, and social login are outside this version.
+- Role changes and social login are outside this version. Removing staff access does not delete their Supabase account or operational data.
 
 ### 7.6 Acceptance and delivery checks
 
@@ -212,7 +212,7 @@ For implementation, verify signup without a session, email confirmation, invalid
 
 Exercise the setup gate before and after authoritative reload: visible locked menus, keyboard/mobile states, direct routes and Back/Forward, no premature operational fetches, save/reload failure, setup-required responses, and owner versus staff permissions. A complete school unlocks only role-permitted menus; an absent role never enables owner-only actions.
 
-Verify recovery errors/success without membership changes; invitation acceptance for new/existing accounts, invalid/expired/wrong-account links, and rejection of second-school membership. Confirm the public bundle contains no privileged secrets and auth screens contain no school/demo branding.
+Verify recovery errors/success without membership changes; invitation acceptance for new accounts and rejection of invitations to existing accounts, invalid/expired/wrong-account links, and rejection of second-school membership. Confirm the public bundle contains no privileged secrets and auth screens contain no school/demo branding.
 
 For this documentation-only change, review the diff and consistency with the handoff/schema; no application tests, build, or browser run is required. Later integration must test against the target Supabase project and deployed Go contract, including email delivery and tenant isolation. Local documentation/schema inspection does not verify that environment.
 

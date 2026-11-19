@@ -1,167 +1,35 @@
-# Handoff FE: Undangan Staff
+# Undangan staff melalui Supabase Auth Admin
 
-Dokumen ini berdiri sendiri untuk implementasi menu undangan staff. Backend
-menyediakan create, list, revoke, inbox penerima, dan accept. Pengiriman email
-serta login magic link belum tersedia; jangan menampilkan pesan “email terkirim”.
+Owner POST `/api/v1/schools/{school_id}/invitations` dengan `{"email":"staff@example.com"}`. Respons 201 tetap berupa string UUID undangan. Supabase mengirim email undangan akun baru; 201 hanya menjamin request diterima, bukan email diterima di inbox.
 
-## Akses dan autentikasi
+## Konfigurasi backend dan Supabase
 
-- Semua endpoint memakai `Authorization: Bearer <access_token pengguna>` dari
-  login Supabase Auth. Email akun wajib terverifikasi.
-- Data bisnis dibaca/ditulis melalui API Go, bukan langsung ke tabel Supabase.
-- Role berasal dari respons `GET /api/v1/schools`, bukan user metadata atau input FE.
-- Menu kelola undangan hanya untuk `role: "owner"` dengan `setup_complete: true`.
-  Staff tidak boleh mengelola undangan. Sekolah belum lengkap diarahkan ke Settings.
-- Satu akun hanya boleh mempunyai satu membership sekolah, termasuk staff.
-- Undangan dapat dibuat sebelum penerima punya akun. Penerima harus login/signup
-  dengan email yang diundang dan memverifikasi email sebelum konfirmasi.
-- Role hasil penerimaan selalu `staff`; tidak ada pilihan role pada form.
+Isi `SUPABASE_SECRET_KEY` khusus backend dan `SUPABASE_INVITE_REDIRECT_URL` dengan URL callback frontend, misalnya `http://localhost:5173/auth/invitation`. Keduanya wajib diisi bersamaan; bila kosong fitur create mengembalikan 503, endpoint lain tetap berjalan. Tambahkan URL callback beserta query `invitation_id` pada allowlist redirect Supabase. Gunakan allowlist sesuai origin/path deployment, bukan wildcard global. Untuk pengiriman ke pengguna umum, konfigurasi SMTP di Supabase diperlukan.
 
-## Flow owner
+## Callback frontend
 
-1. Buka menu “Undangan Staff”; ambil daftar beserta riwayat dengan GET collection.
-2. Tampilkan form email dan tombol “Buat undangan”. Submit ke POST collection.
-3. Setelah 201, muat ulang daftar dan tampilkan “Undangan dibuat”. Jangan menganggap
-   penerima sudah menjadi staff atau sudah mendapat email.
-4. Tampilkan email, tanggal dibuat, masa berlaku, status, dan aksi pembatalan.
-5. Setelah pembatalan berhasil, muat ulang daftar. Riwayat tetap disimpan.
-6. Untuk mengundang ulang setelah dibatalkan/kedaluwarsa, POST email yang sama.
-   Backend membatalkan row kedaluwarsa sebelumnya secara atomik. Tidak ada endpoint
-   resend; pending duplikat masih ditolak 409.
+1. Supabase memverifikasi token email dan mengembalikan sesi sesuai flow Auth frontend. Frontend menangani sesi Supabase dan membaca `invitation_id` dari URL callback.
+2. Tampilkan form setup password dan simpan melalui Supabase Auth. Jangan mengirim password atau token email Supabase ke API bisnis.
+3. Setelah sesi dan password siap, POST `/api/v1/invitations/{id}/accept` tanpa body, dengan `Authorization: Bearer <access_token>` Supabase.
+4. Respons 200 berupa string school_id; muat ulang GET `/api/v1/schools` sebelum masuk halaman sekolah. ID atau role dari callback tidak menjadi sumber otorisasi.
 
-Status diturunkan FE dari field berikut; API tidak memiliki field `status`:
+Membuka link dan membuat akun tidak langsung memberi membership. Email terverifikasi harus cocok dengan undangan; transaksi SQL menjaga expiry, pembatalan, penerimaan sekali saja dan satu membership per akun. Penerimaan ulang menghasilkan 409. Setup password ditangani frontend/Supabase; backend tidak mengetahui apakah password telah dipasang.
 
-| Kondisi (periksa berurutan) | Label |
-| --- | --- |
-| `accepted_at !== null` | Diterima |
-| `revoked_at !== null` | Dibatalkan |
-| `expires_at <= waktu sekarang` | Kedaluwarsa |
-| Selain itu | Menunggu konfirmasi |
+## Daftar dan pembatalan
 
-Timestamp memakai ISO 8601 dengan zona waktu. Parse sebagai timestamp; jangan
-membandingkan teks tanggal. Backend tetap menentukan validitas saat menerima.
+GET collection sekolah tetap tersedia bagi owner, mendukung pagination yang didokumentasikan OpenAPI. DELETE `/api/v1/schools/{school_id}/invitations/{id}` membatalkan akses sekolah, tidak membatalkan akun atau token Auth global Supabase. GET `/api/v1/invitations` ditutup dengan 410; tidak ada halaman inbox penerima lagi. RPC daftar dengan school_id null juga ditolak.
 
-## Flow penerima
+## Kegagalan dan batas saat ini
 
-1. Setelah login, panggil `GET /api/v1/schools` dan `GET /api/v1/invitations`.
-   Jangan memblokir halaman undangan hanya karena akun belum mempunyai sekolah.
-2. Jika schools berupa `[]`, tawarkan undangan yang tersedia sebelum mengarahkan
-   pengguna membuat sekolah baru. Membuat sekolah sendiri akan membuat membership
-   owner dan menghalangi penerimaan undangan sekolah lain.
-3. Tampilkan nama sekolah dan tombol “Terima undangan”. Inbox hanya berisi undangan
-   aktif untuk email terverifikasi pengguna, dari sekolah yang setup-nya lengkap.
-4. Terima hanya setelah klik konfirmasi pengguna. Jangan menerima otomatis ketika
-   login, membuka halaman, atau mendapatkan ID undangan.
-5. Setelah accept berhasil, muat ulang `GET /api/v1/schools`, gunakan role `staff`
-   dari respons, lalu masuk ke sekolah. Muat ulang inbox untuk menghapus undangan
-   yang sudah diterima dari tampilan.
-6. Jika inbox gagal dimuat, tampilkan error dan retry; jangan menganggap hasilnya `[]`.
+- 503 `invitation_delivery_not_configured`: perbaiki konfigurasi backend.
+- 409 `account_already_registered`: email sudah mempunyai akun Supabase; alur undangan akun ini belum mendukung pengguna terkonfirmasi. Jangan meminta pengguna menghapus akun atau membuat akun duplikat. Belum ada fallback magic link.
+- 502 `invitation_delivery_failed`: respons berisi invitation_id. Backend mencoba revoke undangan lokal; periksa riwayat owner dan batalkan jika masih aktif sebelum membuat undangan lagi. Timeout bisa berarti email/akun Auth sudah dibuat. Jangan menghapus akun sebagai kompensasi.
+- Undangan membership lokal berlaku tujuh hari; masa berlaku token email mengikuti konfigurasi Supabase dan bisa lebih pendek.
 
-Tidak ada endpoint menolak undangan oleh penerima. Aksi pembatalan hanya untuk owner.
-Menu ini mengelola undangan; endpoint daftar/hapus anggota aktif belum tersedia.
+Secret hanya berada di backend, tidak di bundle FE atau log. FE tetap memakai public/anon key. Akun terverifikasi tanpa membership tidak boleh otomatis membuat sekolah pada callback undangan.
 
-## Endpoint
+## Database lama dan pengujian
 
-Semua path di bawah sudah mencakup prefix `/api/v1`. Ganti placeholder UUID
-dengan ID asli. `school_id` berasal dari sekolah yang dapat diakses pengguna.
+Terapkan `db/migrations/20261117_remove_school_staff.sql` pada database bisnis PostgreSQL, bukan Supabase SQL Editor. Migrasi sekarang juga memperbarui daftar owner agar hanya kolom publik yang keluar dan menutup jalur inbox SQL. Tidak menghapus row undangan lama; undangan lama tetap dibatasi email, expiry dan status bila ID-nya digunakan untuk konfirmasi.
 
-| Method | Path | Akses | Respons sukses |
-| --- | --- | --- | --- |
-| POST | `/api/v1/schools/{school_id}/invitations` | Owner | 201, JSON string UUID undangan |
-| GET | `/api/v1/schools/{school_id}/invitations` | Owner | 200, daftar termasuk riwayat |
-| DELETE | `/api/v1/schools/{school_id}/invitations/{id}` | Owner | 204, tanpa body |
-| GET | `/api/v1/invitations` | Pengguna login, tanpa syarat membership | 200, daftar undangan aktif milik penerima |
-| POST | `/api/v1/invitations/{id}/accept` | Penerima dengan email cocok | 200, JSON string UUID sekolah |
-
-Body create, dengan `Content-Type: application/json`:
-
-```json
-{"email":"staff@example.com"}
-```
-
-Backend melakukan trim/lowercase dan memvalidasi email, maksimum 254 karakter.
-Jangan mengirim role, user_id, atau school_id dalam body. Masa berlaku tetap 7 hari;
-FE tidak mengatur expiry. DELETE dan accept tidak membutuhkan body.
-
-Contoh respons create (string, bukan `{ "id": ... }`):
-
-```json
-"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
-```
-
-Contoh row pada kedua endpoint list:
-
-```json
-{
-  "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-  "school_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
-  "school_name": "Sekolah Mengemudi",
-  "email": "staff@example.com",
-  "invited_by": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
-  "created_at": "2026-11-15T09:00:00Z",
-  "expires_at": "2026-11-22T09:00:00Z",
-  "accepted_at": null,
-  "revoked_at": null
-}
-```
-
-`accepted_at` dan `revoked_at` berupa string timestamp atau null. Tidak ada nama
-pengundang dalam respons; `invited_by` adalah UUID, bukan nama untuk ditampilkan.
-
-## Pagination
-
-Kedua GET list mempunyai kontrak yang sama:
-
-- Tanpa parameter pagination: array row atau `[]`, maksimal 1000 row.
-- Dengan `?page=1&page_size=10`: objek `{items,total,page,pageSize}`.
-- Jika hanya satu parameter diberikan, parameter lainnya default page 1/page_size 10.
-- `page`: 1–1000000; `page_size`: 1–100. Nilai invalid atau berulang menghasilkan 400.
-- Urutan `created_at DESC, id DESC`; `total` sesuai scope list owner/penerima.
-- Halaman pertama kosong tetap 200; halaman berikutnya yang kosong menghasilkan 416.
-- Belum ada filter status/search. FE jangan menganggap filter lokal satu halaman
-  mencakup seluruh data sekolah.
-
-Contoh respons paginated kosong:
-
-```json
-{"items":[],"total":0,"page":1,"pageSize":10}
-```
-
-## Error dan perilaku UI
-
-| HTTP | Penyebab relevan | Penanganan FE |
-| --- | --- | --- |
-| 400 | Email/JSON/pagination invalid | Tampilkan validasi; pertahankan input |
-| 401 | Token tidak ada/tidak valid | Gunakan flow pemulihan sesi/login yang sudah ada |
-| 403 | Bukan owner, akses sekolah ditolak, email belum terverifikasi, atau setup belum lengkap | Tampilkan alasan sesuai respons; arahkan verifikasi email/Settings bila sesuai |
-| 404 | Undangan tidak ditemukan, email penerima tidak cocok, atau ID/path invalid | Jangan membuka akses; muat ulang daftar |
-| 409 saat create | Pending untuk sekolah/email yang sama sudah ada | Muat ulang daftar; jangan membuat duplikat |
-| 409 saat accept | Undangan expired/dibatalkan/diterima sebelumnya, atau akun sudah punya membership | Tampilkan alasan; muat ulang inbox dan schools |
-| 409 saat revoke | Undangan sudah diterima | Muat ulang riwayat; pembatalan tidak mencabut membership |
-| 410 | Memakai `POST .../members` lama | Ganti pemanggilan ke flow invitations |
-| 416 | Halaman lanjutan tidak mempunyai hasil | Kembali ke halaman sebelumnya/pertama |
-| 502/503 | Gangguan dependency/database | Tampilkan retry; jangan logout otomatis |
-
-Error dapat berbentuk `{"error":"..."}` atau
-`{"code":"...","message":"...","details":null,"hint":null}`.
-Ambil pesan dari `message`, lalu `error`, dengan fallback pesan umum. Untuk error
-database, 409 memakai code SQLSTATE `23505`, 404 memakai `P0002`; code tersebut
-tidak membedakan semua penyebab, jadi jangan memetakan seluruh 409 menjadi duplikat.
-Error setup pada boundary sekolah dapat memakai `code: "school_setup_required"`;
-email belum terverifikasi memakai `code: "verified_email_required"`.
-
-Nonaktifkan tombol selama request berlangsung. Pembatalan ulang aman (204).
-Accept ulang menghasilkan 409; pada timeout, muat ulang schools/inbox sebelum
-menawarkan retry karena request pertama mungkin sudah berhasil.
-
-## Prasyarat dan batas saat ini
-
-- Backend harus sudah menerapkan migrasi `db/migrations/20261115_school_invitations.sql`
-  pada database lama; startup tidak memigrasikan otomatis. Ini tugas backend/admin,
-  bukan SQL yang dijalankan dari FE.
-- Akun baru maupun akun yang sudah ada bisa menerima selama belum punya membership.
-- Undangan hanya menyimpan email dan menunggu konfirmasi; tidak membuat akun Auth.
-- Pengiriman email, tombol kirim ulang email, dan integrasi magic link belum dibuat.
-  Untuk tahap ini, penerima login lewat flow yang sudah ada dan membuka inbox undangan.
-- Semua request bisnis memakai backend Go; jangan mengakses tabel `school_invitations`
-  langsung, memakai service-role key, atau mengganti konfirmasi dengan insert membership.
+Jalankan `scripts/test.ps1` untuk suite lokal dengan Auth Admin tiruan dan database tes terpisah. Pengiriman email nyata dan callback FE memerlukan uji tersendiri setelah konfigurasi diisi.

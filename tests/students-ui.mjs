@@ -1,4 +1,4 @@
-﻿import assert from 'node:assert/strict';
+import assert from 'node:assert/strict';
 import { fixture, session, school, response, waitFor, tick } from './auth-fixture.mjs';
 const students = Array.from({ length: 23 }, (_, i) => ({ id: `student-${i}`, name: `Murid ${String(i).padStart(2, '0')}`, phone: null }));
 const writes = [];
@@ -17,7 +17,7 @@ const history = [
   { id: 'cancel', student_id: 'student-10', enrollment_id: 'enrollment', session_date: '2099-01-02', start_time: '09:00', end_time: '10:00', status: 'Dibatalkan' },
   { id: 'absent', student_id: 'student-10', enrollment_id: 'enrollment', session_date: '2099-01-03', start_time: '09:00', end_time: '10:00', status: 'Tidak hadir' },
 ];
-const f = fixture({ initial: session(), url: 'http://localhost/dashboard/murid', fetch: async (url, options) => {
+const f = fixture({ initial: session(), url: 'http://localhost/dasbor/murid', fetch: async (url, options) => {
   const u = new URL(url, 'http://localhost');
   if (options.method && options.method !== 'GET') {
     if (u.pathname.endsWith('/student_enrollments') && rejectPurchase) return response({ error: 'Paket belum dapat ditambahkan. Silakan coba lagi.' }, 409);

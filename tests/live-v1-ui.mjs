@@ -3,7 +3,7 @@ import { fixture, session, school, response, waitFor, tick } from './auth-fixtur
 let rejectVehicleDelete = true;
 let releaseVehicles;
 const vehicleCalls = [];
-const vehicleFixture = fixture({ initial: session(), url: 'http://localhost/dashboard/mobil', fetch: async (url, options = {}) => {
+const vehicleFixture = fixture({ initial: session(), url: 'http://localhost/dasbor/mobil', fetch: async (url, options = {}) => {
   if (url === '/api/v1/schools') return response([school]);
   if (options.method === 'DELETE') {
     vehicleCalls.push(url);
@@ -41,7 +41,7 @@ let failCalendar = false;
 let failEnrollment = false;
 const enrollment = { id: 'enrollment', student_id: 'student', package_name: 'Paket lama', agreed_price: 600000, total_sessions: 6, remaining_sessions: 0, transmission: 'Matic', session_duration_minutes: 60, status: 'Aktif' };
 let purchased = false;
-const f = fixture({ initial: session(), url: 'http://localhost/dashboard/murid', fetch: async (url, options) => {
+const f = fixture({ initial: session(), url: 'http://localhost/dasbor/murid', fetch: async (url, options) => {
   const u = new URL(url, 'http://localhost');
   if (options.method && options.method !== 'GET') { writes.push([url, JSON.parse(options.body)]); if (url.endsWith('/student_enrollments')) { purchased = true; return response('new-enrollment'); } return options.method === 'POST' && url.endsWith('/packages') ? { ok: true, status: 201, text: async () => '' } : response('saved'); }
   if (url === '/api/v1/schools') return response([{ ...school, name: 'Sekolah Demo Jago Nyetir', role: 'owner' }]);

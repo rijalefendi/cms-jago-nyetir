@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import { fixture, response, school, session, submit, tick, waitFor } from './auth-fixture.mjs';
 
+for (const [oldPath, newPath] of [['/login', '/masuk'], ['/register', '/daftar'], ['/regis', '/daftar'], ['/lupa-password', '/lupa-kata-sandi']]) {
+  const oldLink = fixture({ url: `http://localhost${oldPath}` });
+  await waitFor(() => oldLink.dom.window.location.pathname === newPath);
+  oldLink.close();
+}
+
 for (const [path, heading] of [['akses-ditolak', 'Akses ditolak'], ['tidak-ditemukan', 'Halaman tidak ditemukan']]) {
   const previewPage = fixture({ url: `http://localhost/preview/${path}` });
   await waitFor(() => previewPage.document.querySelector('h1')?.textContent === heading);
@@ -11,14 +17,14 @@ for (const [path, heading] of [['akses-ditolak', 'Akses ditolak'], ['tidak-ditem
   productionPage.close();
 }
 
-for (const [path, heading] of [['pengaturan', 'Akses ditolak'], ['undangan-staff', 'Akses ditolak'], ['tidak-ada', 'Halaman tidak ditemukan']]) {
-  const restricted = fixture({ initial: session(), url: `http://localhost/dashboard/${path}`, fetch: async () => response([{ ...school, role: 'staff', setup_complete: true }]) });
+for (const [path, heading] of [['pengaturan', 'Akses ditolak'], ['staff', 'Akses ditolak'], ['tidak-ada', 'Halaman tidak ditemukan']]) {
+  const restricted = fixture({ initial: session(), url: `http://localhost/dasbor/${path}`, fetch: async () => response([{ ...school, role: 'staff', setup_complete: true }]) });
   await waitFor(() => restricted.document.querySelector('h1')?.textContent === heading);
   assert.equal(restricted.document.querySelector('[data-live-page="settings"]'), null);
   assert.equal(restricted.document.querySelector('[data-live-page="invitations"]'), null);
   assert.ok(restricted.calls.every(([url]) => !url.endsWith('/settings') && !url.endsWith('/invitations')));
   restricted.document.querySelector('.access-page button').click();
-  await waitFor(() => restricted.dom.window.location.pathname === '/dashboard/beranda');
+  await waitFor(() => restricted.dom.window.location.pathname === '/dasbor/beranda');
   restricted.dom.window.history.back();
   await waitFor(() => restricted.document.querySelector('h1')?.textContent === heading);
   restricted.close();
@@ -31,17 +37,17 @@ incompleteStaff.close();
 
 // Login and registration share the selected layout in development and production.
 for (const production of [false, true]) {
-  const auth = fixture({ production, url: 'http://localhost/login?variant=floating' });
+  const auth = fixture({ production, url: 'http://localhost/masuk?variant=floating' });
   await waitFor(() => auth.document.querySelector('.login-vertical form'));
   await waitFor(() => auth.dom.window.location.search === '');
   assert.equal(auth.document.querySelector('[aria-label="Preview tampilan login"]'), null);
   assert.ok(auth.document.querySelector('.login-road-area .login-car use[href="#i-car-driving"]'));
   auth.document.querySelector('[data-auth-mode="signup"]').click();
   await waitFor(() => auth.document.querySelector('h1')?.textContent === 'Daftar akun');
-  assert.equal(auth.dom.window.location.pathname, '/regis');
+  assert.equal(auth.dom.window.location.pathname, '/daftar');
   assert.ok(auth.document.querySelector('.login-vertical .login-road-area'));
   auth.close();
-  const direct = fixture({ production, url: 'http://localhost/regis' });
+  const direct = fixture({ production, url: 'http://localhost/daftar' });
   await waitFor(() => direct.document.querySelector('.login-vertical form'));
   assert.equal(direct.document.querySelector('h1').textContent, 'Daftar akun');
   submit(direct, { email: 'owner@example.com', password: 'long-password' });
@@ -52,12 +58,12 @@ for (const production of [false, true]) {
 
 // Password recovery uses a real SDK request, keeps the callback out of the workspace,
 // and updates a password only after a valid recovery session.
-const forgot = fixture({ url: 'http://localhost/login' });
+const forgot = fixture({ url: 'http://localhost/masuk' });
 await waitFor(() => forgot.document.querySelector('.auth-password-label a'));
 assert.equal(forgot.document.querySelector('.auth-password-label label').htmlFor, 'auth-password');
 forgot.document.querySelector('.auth-password-label a').click();
-await waitFor(() => forgot.document.querySelector('h1')?.textContent === 'Lupa password?');
-assert.equal(forgot.dom.window.location.pathname, '/lupa-password');
+await waitFor(() => forgot.document.querySelector('h1')?.textContent === 'Lupa kata sandi?');
+assert.equal(forgot.dom.window.location.pathname, '/lupa-kata-sandi');
 let resetArgs; let finishReset; let resetCalls = 0;
 forgot.auth.resetPasswordForEmail = (...args) => { resetArgs = args; resetCalls++; return new Promise(resolve => { finishReset = resolve; }); };
 submit(forgot, { email: 'bad-email' });
@@ -110,14 +116,14 @@ await waitFor(() => /sudah tersimpan, tetapi gagal keluar/.test(recovery.documen
 assert.equal(recovery.document.querySelector('h1').textContent, 'Kata sandi diperbarui');
 recovery.auth.signOut = async () => { recovery.emit(null); return { error: null }; };
 [...recovery.document.querySelectorAll('button')].find(b => b.textContent === 'Kembali ke Masuk').click();
-await waitFor(() => recovery.dom.window.location.pathname === '/login');
+await waitFor(() => recovery.dom.window.location.pathname === '/masuk');
 await waitFor(() => recovery.document.querySelector('h1')?.textContent === 'Masuk');
 recovery.close();
-const recoveryEvent = fixture({ url: 'http://localhost/login' });
+const recoveryEvent = fixture({ url: 'http://localhost/masuk' });
 await waitFor(() => recoveryEvent.document.querySelector('form'));
 recoveryEvent.emit(session(), 'PASSWORD_RECOVERY');
 await waitFor(() => recoveryEvent.document.querySelector('[name="confirm"]'));
-assert.equal(recoveryEvent.dom.window.location.pathname, '/lupa-password');
+assert.equal(recoveryEvent.dom.window.location.pathname, '/lupa-kata-sandi');
 assert.equal(recoveryEvent.calls.length, 0);
 recoveryEvent.close();
 
@@ -131,7 +137,7 @@ assert.equal(f.document.querySelector('form'), null);
 restore({ data: { session: null }, error: null });
 await waitFor(() => f.document.querySelector('form'));
 assert.match(f.document.querySelector('h1').textContent, /Masuk/);
-await waitFor(() => f.dom.window.location.pathname === '/login');
+await waitFor(() => f.dom.window.location.pathname === '/masuk');
 submit(f, { email: 'owner@example.com', password: 'wrong-password' });
 await waitFor(() => f.document.querySelector('[role="alert"]'));
 assert.match(f.document.querySelector('[role="alert"]').textContent, /Email atau kata sandi salah/);
@@ -147,7 +153,7 @@ assert.equal(f.errors[0][1].message, 'Invalid login credentials');
 assert.equal(f.errors[0][1].status, 400);
 f.document.querySelector('[data-auth-mode="signup"]').click();
 await waitFor(() => f.document.querySelector('h1')?.textContent === 'Daftar akun');
-assert.equal(f.dom.window.location.pathname, '/regis');
+assert.equal(f.dom.window.location.pathname, '/daftar');
 let signup;
 let signupCount = 0;
 let finishSignup;
@@ -165,24 +171,24 @@ assert.equal(f.calls.length, 0);
 f.close();
 
 // Auth routes support direct entry, browser history, and logged-out dashboard links.
-f = fixture({ url: 'http://localhost/regis' });
+f = fixture({ url: 'http://localhost/daftar' });
 await waitFor(() => f.document.querySelector('h1')?.textContent === 'Daftar akun');
-assert.equal(f.dom.window.location.pathname, '/regis');
+assert.equal(f.dom.window.location.pathname, '/daftar');
 f.document.querySelector('[data-auth-mode="login"]').click();
 await waitFor(() => f.document.querySelector('h1')?.textContent === 'Masuk');
-assert.equal(f.dom.window.location.pathname, '/login');
+assert.equal(f.dom.window.location.pathname, '/masuk');
 f.dom.window.history.back();
 await waitFor(() => f.document.querySelector('h1')?.textContent === 'Daftar akun');
-assert.equal(f.dom.window.location.pathname, '/regis');
+assert.equal(f.dom.window.location.pathname, '/daftar');
 f.dom.window.history.forward();
 await waitFor(() => f.document.querySelector('h1')?.textContent === 'Masuk');
 f.close();
-f = fixture({ url: 'http://localhost/dashboard/beranda' });
-await waitFor(() => f.dom.window.location.pathname === '/login');
+f = fixture({ url: 'http://localhost/dasbor/beranda' });
+await waitFor(() => f.dom.window.location.pathname === '/masuk');
 assert.equal(f.document.querySelector('h1').textContent, 'Masuk');
 f.close();
-f = fixture({ initial: session(), url: 'http://localhost/login' });
-await waitFor(() => f.dom.window.location.pathname === '/dashboard/beranda');
+f = fixture({ initial: session(), url: 'http://localhost/masuk' });
+await waitFor(() => f.dom.window.location.pathname === '/dasbor/beranda');
 await waitFor(() => f.document.querySelector('h1'));
 assert.equal(f.document.querySelector('h1').textContent, 'Beranda');
 f.close();
@@ -413,9 +419,16 @@ f.auth.signInWithPassword = async () => { const next = session(); f.emit(next); 
 submit(f, { email: 'owner@example.com', password: 'long-password' });
 await waitFor(() => f.document.querySelector('.live-nav button:not(:disabled)'));
 assert.equal(f.calls.filter(([url]) => url === '/api/v1/schools').length, 1);
-assert.ok(f.document.querySelector('.sidebar .school-name'), 'live uses the dashboard shell');
-assert.equal(f.document.querySelector('.school-name').textContent, 'Sekolah');
+assert.equal(f.document.querySelector('.sidebar-school-name').textContent, 'Sekolah');
 assert.equal(f.document.getElementById('schoolPicker'), null, 'live never exposes the demo school switcher');
+f.document.querySelector('.sidebar-toggle').click();
+await waitFor(() => f.document.querySelector('.app.sidebar-collapsed'));
+f.document.querySelector('[data-live-page="invitations"]').click();
+await waitFor(() => f.document.querySelector('[data-live-page="invitations"][aria-current="page"]'));
+assert.ok(f.document.querySelector('.app.sidebar-collapsed'), 'sidebar stays collapsed across workspace pages');
+f.document.querySelector('[data-live-page="home"]').click();
+await waitFor(() => f.document.querySelector('[data-live-page="home"][aria-current="page"]'));
+assert.ok(f.document.querySelector('.app.sidebar-collapsed'), 'sidebar stays collapsed when returning to operations');
 const liveMenu = f.document.querySelector('.mobile-menu-btn');
 liveMenu.click();
 await waitFor(() => liveMenu.getAttribute('aria-expanded') === 'true');
@@ -429,12 +442,12 @@ f.auth.signOut = async () => { f.emit(null); return { error: null }; };
 [...f.document.querySelectorAll('button')].find(button => button.textContent === 'Keluar').click();
 await waitFor(() => f.document.querySelector('h1')?.textContent === 'Masuk');
 assert.equal(f.document.querySelector('.live-nav'), null);
-await waitFor(() => f.dom.window.location.pathname === '/login');
+await waitFor(() => f.dom.window.location.pathname === '/masuk');
 f.close();
 
 f = fixture({ initial: session(), url: 'http://localhost/auth/callback#access_token=sensitive' });
 await waitFor(() => f.document.querySelector('.live-nav button:not(:disabled)'));
-await waitFor(() => f.dom.window.location.pathname === '/dashboard/beranda');
+await waitFor(() => f.dom.window.location.pathname === '/dasbor/beranda');
 assert.equal(f.dom.window.location.hash, '');
 f.close();
 
@@ -459,21 +472,19 @@ f.close();
 
 // A new account opens school setup, while the invitation inbox remains accessible.
 for (const existing of [false, true]) {
-  const onboarding = fixture({ initial: session(), url: 'http://localhost/login', fetch: async url => url.endsWith('/settings') ? response([{ ...school, weekday_closed: true, weekend_closed: true }]) : response(existing ? [{ ...school, setup_complete: false }] : []) });
+  const onboarding = fixture({ initial: session(), url: 'http://localhost/masuk', fetch: async url => url.endsWith('/settings') ? response([{ ...school, weekday_closed: true, weekend_closed: true }]) : response(existing ? [{ ...school, setup_complete: false }] : []) });
   await waitFor(() => onboarding.document.querySelector('h1')?.textContent === 'Pengaturan Sekolah');
-  assert.equal(onboarding.dom.window.location.pathname, '/dashboard/pengaturan');
+  assert.equal(onboarding.document.getElementById('brandWord').textContent, 'AturSetir');
+  assert.equal(onboarding.dom.window.location.pathname, '/dasbor/pengaturan');
   assert.match(onboarding.document.body.textContent, /Lengkapi data sekolah/);
   onboarding.close();
 }
-const newOwner = fixture({ initial: session(), url: 'http://localhost/dashboard/pengaturan', fetch: async () => response([]) });
-await waitFor(() => newOwner.document.querySelector('h1'));
+const newOwner = fixture({ initial: session(), url: 'http://localhost/dasbor/pengaturan', fetch: async () => response([]) });
+await waitFor(() => newOwner.document.querySelector('h1')?.textContent === 'Pengaturan Sekolah');
 assert.equal(newOwner.document.querySelector('h1').textContent, 'Pengaturan Sekolah');
 assert.ok(newOwner.document.querySelector('[name="name"]'));
-[...newOwner.document.querySelectorAll('button')].find(button => button.textContent === 'Lihat inbox undangan').click();
-await waitFor(() => newOwner.document.querySelector('h1')?.textContent === 'Inbox Undangan');
-assert.equal(newOwner.dom.window.location.pathname, '/dashboard/inbox-undangan');
-newOwner.dom.window.history.back();
-await waitFor(() => newOwner.document.querySelector('h1')?.textContent === 'Pengaturan Sekolah');
+assert.doesNotMatch(newOwner.document.body.textContent, /inbox undangan/i);
+assert.ok(newOwner.calls.every(([url]) => !url.startsWith('/api/v1/invitations')));
 newOwner.close();
 
 // Only a successful empty list permits creation, with the complete profile payload.
@@ -665,9 +676,9 @@ assert.equal(f.document.getElementById('main'), null);
 f.document.dispatchEvent(new f.dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 f.dom.window.dispatchEvent(new f.dom.window.PopStateEvent('popstate'));
 assert.deepEqual(previewErrors, [], 'demo listeners must be removed when auth ends');
-await waitFor(() => f.dom.window.location.pathname === '/login');
+await waitFor(() => f.dom.window.location.pathname === '/masuk');
 f.emit(session());
-await waitFor(() => f.document.querySelector('[data-react-page="OverviewPage"]') && f.dom.window.location.pathname === '/dashboard/beranda');
+await waitFor(() => f.document.querySelector('[data-react-page="OverviewPage"]') && f.dom.window.location.pathname === '/dasbor/beranda');
 assert.equal(f.calls.length, 0);
 assert.deepEqual(f.errors.filter(([label]) => label !== '[auth:login]'), []);
 f.close();
@@ -684,4 +695,63 @@ assert.equal(f.calls.length, 1);
 assert.equal(f.document.querySelector('[data-react-page="OverviewPage"]'), null);
 assert.equal(f.document.getElementById('schoolPicker'), null);
 f.close();
+
+// Invitation callback restores a session on reload and finishes password before membership.
+const invitationId = '11111111-1111-1111-1111-111111111111';
+let passwordReady = false;
+const invite = fixture({ initial: session(), url: `http://localhost/auth/invitation?invitation_id=${invitationId}`, fetch: async (url, options) => {
+  if (url.endsWith('/accept')) { assert.ok(passwordReady); assert.equal(options.body, undefined); assert.equal(options.headers.Authorization, 'Bearer token-a'); return response('school'); }
+  return response([{ ...school, role: 'staff' }]);
+} });
+await waitFor(() => invite.document.querySelector('form'));
+assert.equal(invite.calls.length, 0);
+invite.auth.updateUser = async () => { passwordReady = true; return { error: null }; };
+submit(invite, { password: 'long-password', confirm: 'long-password' });
+await waitFor(() => invite.dom.window.location.pathname === '/dasbor/beranda');
+assert.equal(invite.calls[0][0], `/api/v1/invitations/${invitationId}/accept`);
+assert.equal(invite.calls[1][0], '/api/v1/schools');
+invite.close();
+
+const ownerInvite = fixture({ initial: session(), url: 'http://localhost/dasbor/staff', fetch: async (url, options) => {
+  if (url === '/api/v1/schools') return response([school]);
+  if (url.endsWith('/members')) return response([]);
+  if (options.method === 'POST') { assert.deepEqual(JSON.parse(options.body), { email: 'staff@example.com' }); return response({ code: 'account_already_registered' }, 409); }
+  return response({ items: [], total: 0, page: 1, pageSize: 10 });
+} });
+await waitFor(() => ownerInvite.calls.some(([url]) => url.includes('/invitations?')));
+assert.equal(ownerInvite.document.querySelectorAll('.invitation-panel').length, 1);
+assert.doesNotMatch(ownerInvite.document.body.textContent, /Budi Santoso|Data simulasi/);
+[...ownerInvite.document.querySelectorAll('button')].find(b => b.textContent === 'Tambah staff').click();
+await waitFor(() => ownerInvite.document.querySelector('form'));
+const emailInput = ownerInvite.document.querySelector('[name="email"]');
+Object.getOwnPropertyDescriptor(ownerInvite.dom.window.HTMLInputElement.prototype, 'value').set.call(emailInput, 'staff@example.com');
+emailInput.dispatchEvent(new ownerInvite.dom.window.Event('input', { bubbles: true }));
+await tick();
+submit(ownerInvite, { email: 'staff@example.com' });
+await waitFor(() => /sudah terdaftar/.test(ownerInvite.document.querySelector('[role="alert"]')?.textContent || ''));
+assert.equal(ownerInvite.document.querySelector('[name="email"]').value, 'staff@example.com');
+assert.ok(ownerInvite.document.querySelector('.modal .form-error.visible[role="alert"]'));
+ownerInvite.close();
+
+// Successful accept must still wait for a valid membership; retry only the read.
+let membershipReady = false;
+const awaitingSchool = fixture({ initial: session(), url: `http://localhost/auth/invitation?invitation_id=${invitationId}`, fetch: async url => url.endsWith('/accept') ? response('school') : response(membershipReady ? [{ ...school, role: 'staff' }] : []) });
+await waitFor(() => awaitingSchool.document.querySelector('form'));
+submit(awaitingSchool, { password: 'long-password', confirm: 'long-password' });
+await waitFor(() => awaitingSchool.document.querySelector('[role="alert"]'));
+assert.equal(awaitingSchool.dom.window.location.pathname, '/auth/invitation');
+assert.doesNotMatch(awaitingSchool.document.body.textContent, /Buat sekolah/);
+membershipReady = true;
+submit(awaitingSchool, {});
+await waitFor(() => awaitingSchool.dom.window.location.pathname === '/dasbor/beranda');
+assert.equal(awaitingSchool.calls.filter(([url]) => url.endsWith('/accept')).length, 1);
+awaitingSchool.close();
+
+for (const [initial, query] of [[null, invitationId], [session(), 'invalid']]) {
+  const invalidInvite = fixture({ initial, url: `http://localhost/auth/invitation?invitation_id=${query}` });
+  await waitFor(() => /Tautan undangan tidak valid/.test(invalidInvite.document.body.textContent));
+  assert.equal(invalidInvite.calls.length, 0);
+  assert.equal(invalidInvite.document.querySelector('form'), null);
+  invalidInvite.close();
+}
 console.log('Auth UI passed');

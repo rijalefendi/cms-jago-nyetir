@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { IconSprite } from "./IconSprite";
 import type { School } from "./auth";
 import { Icon } from "./ui";
@@ -23,6 +23,12 @@ const groups = [
   },
 ];
 
+const SidebarState = createContext<[boolean, React.Dispatch<React.SetStateAction<boolean>>] | null>(null);
+export function SidebarStateProvider({ children }: { children: React.ReactNode }) {
+  const state = useState(false);
+  return <SidebarState.Provider value={state}>{children}</SidebarState.Provider>;
+}
+
 export function DashboardShell({
   school,
   demo,
@@ -34,7 +40,7 @@ export function DashboardShell({
   children,
 }: {
   school: School | null;
-  demo?: { id: string; timeZone: string; schools: readonly { id: string; name: string }[]; onChange: (id: string) => void };
+  demo?: { id: string; schools: readonly { id: string; name: string }[]; onChange: (id: string) => void };
   page: string;
   onNavigate: (page: string) => void;
   locked?: boolean;
@@ -43,7 +49,8 @@ export function DashboardShell({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
-  const [clock, setClock] = useState("");
+  const localSidebarState = useState(false);
+  const [collapsed, setCollapsed] = useContext(SidebarState) ?? localSidebarState;
   const toggle = useRef<HTMLButtonElement>(null);
   const title =
     page === "reports" ? "Laporan" : demo && page === "home" ? "Ringkasan" : page === "settings"
@@ -60,21 +67,6 @@ export function DashboardShell({
     document.getElementById("main")?.focus();
     onNavigate(next);
   }
-  useEffect(() => {
-    function update() {
-      setClock(
-        new Intl.DateTimeFormat("id-ID", {
-          timeZone: demo?.timeZone || "Asia/Makassar",
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: false,
-        }).format(new Date()) + (demo?.timeZone === "Asia/Jakarta" ? " WIB" : " WITA"),
-      );
-    }
-    update();
-    const timer = setInterval(update, 60000);
-    return () => clearInterval(timer);
-  }, [demo?.timeZone]);
   useEffect(() => {
     document.title = `${title} | ${school?.name || "AturSetir"}`;
   }, [title, school?.name]);
@@ -108,12 +100,14 @@ export function DashboardShell({
       type="button"
       key={key}
       className={`${mobile ? "mobile-tab" : "nav-link"}${page === key ? " active" : ""}`}
+      aria-label={label}
+      title={label}
       data-live-page={demo ? undefined : key}
       data-page={demo ? ({home:"dashboard",sessions:"jadwal",students:"murid",instructors:"instruktur",vehicles:"mobil",packages:"paket",reports:"laporan",settings:"pengaturan"} as Record<string,string>)[key] : undefined}
       aria-current={page === key ? "page" : undefined}
-      disabled={locked && key !== "settings" && key !== "inbox"}
+      disabled={locked && key !== "settings"}
       aria-describedby={
-        locked && key !== "settings" && key !== "inbox" ? "setup-reason" : undefined
+        locked && key !== "settings" ? "setup-reason" : undefined
       }
       onClick={() => navigate(key)}
     >
@@ -127,7 +121,7 @@ export function DashboardShell({
         Lewati navigasi
       </a>
       <IconSprite />
-      <div className="app">
+      <div className={`app${collapsed ? " sidebar-collapsed" : ""}`}>
         <div className={`scrim${open ? " open" : ""}`} onClick={close} />
         <aside
           className={`sidebar${open ? " open" : ""}`}
@@ -135,22 +129,17 @@ export function DashboardShell({
           aria-label="Navigasi dashboard"
         >
           <div className="brand">
-            <div id="brandWord" className="brand-word platform-wordmark"><BrandIcon />AturSetir</div>
-            <div className="brand-caption">Operasional kursus mobil</div>
+            <div id="brandWord" className="brand-word platform-wordmark"><BrandIcon /><span>AturSetir</span></div>
           </div>
-          <section className="school-context" aria-label="Konteks sekolah">
-            <div className="school-context-label">Sekolah aktif</div>{demo && <label className="school-picker"><span>Sekolah demo</span><select id="schoolPicker" value={demo.id} onChange={e => demo.onChange(e.target.value)}>{demo.schools.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>}
-            <div className="school-identity">
-              {demo && <img className="brand-logo" alt="" hidden />}<div className="school-copy">
-                <div id="schoolName" className="school-name">
-                  {school?.name || "Sekolah Anda"}
-                </div>
-                <div id="schoolLocation" className="brand-caption">
-                  {school?.location || "Lengkapi profil sekolah"}
-                </div>
-              </div>
-            </div>
-          </section>
+          <div className="sidebar-school">
+            <span className="sidebar-school-name">{school && (demo || school.role !== "owner" || school.setup_complete) ? school.name : "Sekolah Anda"}</span>
+            <button type="button" className="sidebar-toggle" aria-label={collapsed ? "Perluas navigasi" : "Perkecil navigasi"} title={collapsed ? "Perluas navigasi" : "Perkecil navigasi"} aria-controls="sidebar" aria-expanded={!collapsed} onClick={() => setCollapsed(!collapsed)}>
+              <Icon name={collapsed ? "chevron-right" : "chevron-left"} />
+            </button>
+          </div>
+          {demo && <section className="school-context" aria-label="Konteks sekolah">
+            <label className="school-picker"><span>Sekolah demo</span><select id="schoolPicker" value={demo.id} onChange={e => demo.onChange(e.target.value)}>{demo.schools.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+          </section>}
           <nav aria-label="Menu utama">
             <div className="live-nav">
               {groups.map((group) => (
@@ -165,7 +154,6 @@ export function DashboardShell({
             <div className="nav-group">
               <div className="nav-title">LAINNYA</div>
               {demo && link("reports", "Laporan", "chart")}
-              {!demo && link("inbox", "Inbox Undangan", "message")}
               {!demo && school?.role === "owner" && school.setup_complete && link("invitations", "Staff", "users")}
               {(demo || !school || school.role === "owner") && link("settings", "Pengaturan", "settings")}
             </div>
@@ -187,7 +175,6 @@ export function DashboardShell({
               </button>
             </div>
             <div className="topbar-right">
-              <span id="headerClock" className="header-clock">{clock}</span>
               {(!demo || onLogout) && <button
                 type="button"
                 className="btn btn-danger"

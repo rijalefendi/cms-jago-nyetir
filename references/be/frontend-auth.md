@@ -134,7 +134,7 @@ GET Settings sendiri tidak menambahkan role; gunakan konteks bootstrap. Backend 
 Jika PUT ditolak karena akses berubah, tampilkan pesan dan muat ulang konteks; role di state FE bukan bukti izin server.
 
 Gunakan ID hasil bootstrap pada URL setiap request bisnis. Sertakan `school_id` dalam key cache data sekolah dan identitas akun dalam konteks cache; jangan mengambil tenant dari metadata Auth atau body form.
-Setelah setup lengkap, lanjutkan ke flow siswa → enrollment → sesi di [frontend-sessions.md](frontend-sessions.md).
+Setelah setup lengkap, lanjutkan ke flow siswa â†’ enrollment â†’ sesi di [frontend-sessions.md](frontend-sessions.md).
 
 ## 5. API minimum untuk onboarding dan Settings
 
@@ -213,11 +213,11 @@ Kontrak endpoint dan bentuk payload lengkap ada di `internal/httpapi/docs/openap
 
 ### Perubahan yang perlu diperiksa pada FE lama
 
-- Akses tabel bisnis Supabase langsung → request API Go dengan access token Supabase.
-- Login langsung dashboard → bootstrap sekolah dan pemeriksaan `setup_complete`/`role`.
-- Pembuatan sekolah hanya nama → nama, alamat, serta jam weekday/weekend lengkap.
-- Role/tenant dari metadata atau state lokal → konteks hasil bootstrap; backend tetap memeriksa akses.
-- Dokumen SQL saja → dokumen flow ini, dokumen sesi, dan OpenAPI. SQL bukan kontrak request FE.
+- Akses tabel bisnis Supabase langsung â†’ request API Go dengan access token Supabase.
+- Login langsung dashboard â†’ bootstrap sekolah dan pemeriksaan `setup_complete`/`role`.
+- Pembuatan sekolah hanya nama â†’ nama, alamat, serta jam weekday/weekend lengkap.
+- Role/tenant dari metadata atau state lokal â†’ konteks hasil bootstrap; backend tetap memeriksa akses.
+- Dokumen SQL saja â†’ dokumen flow ini, dokumen sesi, dan OpenAPI. SQL bukan kontrak request FE.
 
 Referensi resmi Supabase (diverifikasi saat penulisan; konfigurasi proyek nyata belum diperiksa):
 
@@ -228,5 +228,4 @@ Referensi resmi Supabase (diverifikasi saat penulisan; konfigurasi proyek nyata 
 - API keys: `https://supabase.com/docs/guides/getting-started/api-keys`
 - Jika FE memakai SSR: `https://supabase.com/docs/guides/auth/server-side`
 
-Undangan staff via magic link belum tersedia. Endpoint members lama langsung memberi akses pada akun terverifikasi,
-bukan invitation yang menunggu persetujuan. Jangan mengimplementasikan UI penerimaan undangan berdasarkan endpoint tersebut.
+Undangan akun staff sekarang memakai Supabase Auth Admin. Flow inbox lama ditutup (410). Ikuti [frontend-staff-invitations.md](frontend-staff-invitations.md) untuk callback sesi, setup password dan konfirmasi membership. Secret hanya berada di backend; FE tetap memakai public key. Akun terkonfirmasi belum didukung oleh API invite akun baru.

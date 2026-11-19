@@ -17,22 +17,22 @@ for (const [page, icon] of [['students', 'student'], ['instructors', 'teacher'],
 }
 emptyLists.close();
 
-const routing = fixture({ initial: session(), url: 'http://localhost/dashboard/instruktur' });
+const routing = fixture({ initial: session(), url: 'http://localhost/dasbor/instruktur' });
 await waitFor(() => routing.document.querySelector('.live-nav [data-live-page="instructors"][aria-current="page"]'));
 routing.document.querySelector('.live-nav [data-live-page="vehicles"]').click();
 await waitFor(() => routing.document.querySelector('.live-nav [data-live-page="vehicles"][aria-current="page"]'));
-assert.equal(routing.dom.window.location.pathname, '/dashboard/mobil');
+assert.equal(routing.dom.window.location.pathname, '/dasbor/mobil');
 routing.dom.window.history.back();
 await waitFor(() => routing.document.querySelector('.live-nav [data-live-page="instructors"][aria-current="page"]'));
-assert.equal(routing.dom.window.location.pathname, '/dashboard/instruktur');
+assert.equal(routing.dom.window.location.pathname, '/dasbor/instruktur');
 routing.document.querySelector('#sidebar [data-live-page="settings"]').click();
 await waitFor(() => routing.document.querySelector('#sidebar [data-live-page="settings"][aria-current="page"]'));
-assert.equal(routing.dom.window.location.pathname, '/dashboard/pengaturan');
+assert.equal(routing.dom.window.location.pathname, '/dasbor/pengaturan');
 routing.close();
 
 const initialRoute = fixture({ initial: session() });
 await waitFor(() => initialRoute.document.querySelector('.live-nav [data-live-page="home"][aria-current="page"]'));
-await waitFor(() => initialRoute.dom.window.location.pathname === '/dashboard/beranda');
+await waitFor(() => initialRoute.dom.window.location.pathname === '/dasbor/beranda');
 initialRoute.close();
 
 const { dom } = fixture({ initial: session() });

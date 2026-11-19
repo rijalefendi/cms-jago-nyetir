@@ -1,76 +1,415 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ApiError, type Api } from './auth';
-import { Badge, Button, ConfirmDialog, EmptyState, Icon, Modal, PageHeading, showToast } from './ui';
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { ApiError, type Api } from "./auth";
+import { loadPages } from "./loadPages";
+import {
+  Badge,
+  Button,
+  ConfirmDialog,
+  EmptyState,
+  FormError,
+  Icon,
+  Modal,
+  PageHeading,
+  SearchField,
+  showToast,
+} from "./ui";
 
-type Invitation = { id: string; email: string; school_name: string; created_at: string; expires_at: string; accepted_at: string | null; revoked_at: string | null };
-type Result = { items: Invitation[]; total: number; page: number; pageSize: number };
+type Invitation = {
+  id: string;
+  email: string;
+  created_at: string;
+  expires_at: string;
+  accepted_at: string | null;
+  revoked_at: string | null;
+};
+type Member = {
+  user_id: string;
+  email: string | null;
+  role: "owner" | "staff";
+  created_at: string;
+};
+type StaffRow = {
+  id: string;
+  email: string | null;
+  created_at: string;
+  expires_at: string | null;
+  status: string;
+  action: "remove" | "revoke" | null;
+};
 
-export function Invitations({ api, schoolId, onAccepted }: { api: Api; schoolId?: string; onAccepted?: () => Promise<void> }) {
-  const owner = Boolean(schoolId);
-  const path = owner ? `/schools/${schoolId}/invitations` : '/invitations';
+export function Invitations({ api, schoolId }: { api: Api; schoolId: string }) {
+  const path = `/schools/${schoolId}/invitations`;
   const [page, setPage] = useState(1);
-  const [section, setSection] = useState<'active' | 'invitations'>('invitations');
-  const [members, setMembers] = useState<{ user_id: string; email: string | null; role: string; created_at: string }[] | null>(null);
-  const [memberError, setMemberError] = useState('');
-  const [memberAttempt, setMemberAttempt] = useState(0);
-  const [data, setData] = useState<Result | null>(null);
+  const [data, setData] = useState<StaffRow[] | null>(null);
+  const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const working = useRef(false);
-  const [error, setError] = useState('');
-  const [email, setEmail] = useState('');
+  const [error, setError] = useState("");
+  const [loadError, setLoadError] = useState("");
+  const [email, setEmail] = useState("");
   const [creating, setCreating] = useState(false);
-  const [confirm, setConfirm] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState<StaffRow | null>(null);
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError("");
     try {
-      const result = await api(`${path}?page=${page}&page_size=10`);
-      if (!result || !Array.isArray(result.items) || typeof result.total !== 'number') throw Error('Respons undangan tidak valid.');
-      setData(result); setError('');
+      const [members, invitations] = await Promise.all([
+        api(`/schools/${schoolId}/members`),
+        loadPages(api, path),
+      ]);
+      if (
+        !Array.isArray(members) ||
+        members.some(
+          (m) =>
+            !m?.user_id ||
+            !["owner", "staff"].includes(m.role) ||
+            (m.email !== null && typeof m.email !== "string") ||
+            typeof m.created_at !== "string",
+        )
+      )
+        throw Error("Respons staff tidak valid.");
+      if (
+        invitations.some(
+          (row) =>
+            typeof row.email !== "string" ||
+            typeof row.created_at !== "string" ||
+            typeof row.expires_at !== "string",
+        )
+      )
+        throw Error("Respons aktivasi staff tidak valid.");
+      // shortcut: endpoint members dibatasi 1000 akun, pindah ke pagination server saat kontrak BE mendukungnya.
+      setData([
+        ...members
+          .filter((m: Member) => m.role === "staff")
+          .map(
+            (m: Member): StaffRow => ({
+              id: m.user_id,
+              email: m.email,
+              created_at: m.created_at,
+              expires_at: null,
+              status: "Aktif",
+              action: "remove",
+            }),
+          ),
+        ...(invitations as Invitation[])
+          .filter((row) => !row.accepted_at)
+          .map(
+            (row): StaffRow => ({
+              id: row.id,
+              email: row.email,
+              created_at: row.created_at,
+              expires_at: row.expires_at,
+              status: row.revoked_at
+                ? "Dibatalkan"
+                : Date.parse(row.expires_at) <= Date.now()
+                  ? "Kedaluwarsa"
+                  : "Menunggu konfirmasi",
+              action:
+                !row.revoked_at && Date.parse(row.expires_at) > Date.now()
+                  ? "revoke"
+                  : null,
+            }),
+          ),
+      ]);
+      setPage(1);
     } catch (e) {
-      if (e instanceof ApiError && e.status === 416 && page > 1) { setPage(page - 1); return; }
-      setData(null); setError(e instanceof Error ? e.message : 'Gagal memuat undangan.');
-    } finally { setLoading(false); }
-  }, [api, path, page]);
-  useEffect(() => { void load(); }, [load]);
-  useEffect(() => { if (!schoolId || section !== 'active') return; let active = true; setMembers(null); setMemberError(''); api(`/schools/${schoolId}/members?sort=created_at&direction=desc`).then(result => { if (!Array.isArray(result)) throw Error('Respons anggota tidak valid.'); if (active) setMembers(result); }).catch(e => { if (active) setMemberError(e instanceof Error ? e.message : 'Gagal memuat staff.'); }); return () => { active = false; }; }, [api, schoolId, section, memberAttempt]);
-  async function action(kind: 'create' | 'revoke' | 'accept', id?: string) {
+      setData(null);
+      setLoadError(e instanceof Error ? e.message : "Gagal memuat staff.");
+    } finally {
+      setLoading(false);
+    }
+  }, [api, path, schoolId]);
+  useEffect(() => {
+    void load();
+  }, [load]);
+  async function action(kind: "create" | "revoke" | "remove", id?: string) {
     if (working.current) return;
-    working.current = true; setBusy(true); setError('');
+    working.current = true;
+    setBusy(true);
+    setError("");
     try {
-      if (kind === 'create') { await api(path, 'POST', { email }); setEmail(''); setCreating(false); showToast('Undangan dibuat.'); }
-      if (kind === 'revoke') { await api(`${path}/${id}`, 'DELETE'); showToast('Undangan dibatalkan.'); }
-      if (kind === 'accept') { await api(`/invitations/${id}/accept`, 'POST'); await onAccepted?.(); }
-      setConfirm(null); await load();
-    } catch (e) {
-      const text = e instanceof Error ? e.message : 'Permintaan gagal. Silakan coba lagi.';
-      if (kind === 'accept' || (e instanceof ApiError && [404, 409].includes(e.status))) {
-        if (kind === 'accept') await onAccepted?.();
-        await load();
+      if (kind === "remove") {
+        await api(`/schools/${schoolId}/members/${id}`, "DELETE");
+        showToast("Akses staff dihapus.");
       }
+      if (kind === "revoke") {
+        await api(`${path}/${id}`, "DELETE");
+        showToast("Penambahan staff dibatalkan.");
+      }
+      if (kind === "create") {
+        await api(path, "POST", { email: email.trim() });
+        setCreating(false);
+        setEmail("");
+        showToast(
+          "Permintaan penambahan staff diterima. Minta staff memeriksa email.",
+        );
+      }
+      setConfirm(null);
+      await load();
+    } catch (e) {
+      const text =
+        e instanceof ApiError && e.code === "account_already_registered"
+          ? "Email sudah terdaftar. Penambahan staff dengan akun lama belum didukung."
+          : e instanceof ApiError &&
+              e.code === "invitation_delivery_not_configured"
+            ? "Pengiriman email aktivasi belum dikonfigurasi. Hubungi pengelola layanan."
+            : e instanceof ApiError && e.code === "invitation_delivery_failed"
+              ? "Pengiriman belum dapat dipastikan. Periksa daftar dan batalkan proses yang masih menunggu sebelum membuat ulang."
+              : e instanceof Error
+                ? e.message
+                : "Permintaan gagal. Silakan coba lagi.";
+      if (
+        kind !== "create" ||
+        (e instanceof ApiError && e.code === "invitation_delivery_failed")
+      )
+        await load();
+      setConfirm(null);
       setError(text);
-    } finally { working.current = false; setBusy(false); }
+    } finally {
+      working.current = false;
+      setBusy(false);
+    }
   }
-  const status = (row: Invitation) => row.accepted_at ? 'Diterima' : row.revoked_at ? 'Dibatalkan' : Date.parse(row.expires_at) <= Date.now() ? 'Kedaluwarsa' : 'Menunggu konfirmasi';
-  const date = (value: string) => new Date(value).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
-  const createButton = <Button variant="primary" icon="plus" onClick={() => { setError(''); setCreating(true); }}>Buat undangan</Button>;
-  return <>
-    <PageHeading label={owner ? 'Staff' : 'Inbox Undangan'} description={owner ? 'Kelola staff dan undangan sekolah.' : 'Periksa undangan sekolah untuk akun Anda.'} actions={owner && section === 'invitations' && createButton} />
-    {owner && <nav className="segmented staff-sections" aria-label="Bagian staff"><button type="button" className={section === 'active' ? 'active' : ''} aria-pressed={section === 'active'} onClick={() => setSection('active')}>Staff aktif</button><button type="button" className={section === 'invitations' ? 'active' : ''} aria-pressed={section === 'invitations'} onClick={() => setSection('invitations')}>Undangan</button></nav>}
-    {owner && section === 'active' ? <section className="panel invitation-panel"><div className="panel-head"><h2 className="panel-title">Staff aktif</h2></div>{memberError ? <div className="instructor-load-error" role="alert">{memberError}<Button onClick={() => setMemberAttempt(n => n + 1)}>Coba lagi</Button></div> : !members ? <p className="instructor-empty" role="status">Memuat staff...</p> : !members.some(member => member.role === 'staff') ? <EmptyState icon="users" title="Belum ada staff" description="Undang staff untuk bergabung ke sekolah." /> : <div className="instructor-table-scroll"><table className="instructor-table"><thead><tr><th>Email</th><th>Bergabung</th></tr></thead><tbody>{members.filter(member => member.role === 'staff').map(member => <tr key={member.user_id}><td data-label="Email">{member.email || 'Email tidak tersedia'}</td><td data-label="Bergabung">{date(member.created_at)}</td></tr>)}</tbody></table></div>}</section> : <>
-    {error && !creating && <div role="alert" className="instructor-load-error"><strong>{error}</strong><Button sm onClick={load} disabled={loading || busy}>Coba lagi</Button></div>}
-    <section className="panel instructor-panel invitation-panel">
-      <div className="panel-head"><div><h2 className="panel-title">{owner ? 'Riwayat undangan' : 'Undangan tersedia'}</h2><p className="panel-sub">{owner ? 'Undangan yang dibuat beserta statusnya.' : 'Terima undangan untuk bergabung sebagai staff.'}</p></div></div>
-      {loading ? <div className="instructor-empty" role="status">Memuat undangan...</div> : data && !data.items.length ? <EmptyState icon={owner ? 'users' : 'message'} title="Belum ada undangan" description={owner ? 'Buat undangan untuk menambahkan staff ke sekolah.' : 'Undangan untuk akun ini akan muncul di sini.'} action={owner && createButton} /> : data && <div className="instructor-table-scroll"><table className="instructor-table"><thead><tr>{(owner ? ['Email', 'Dibuat', 'Berlaku hingga', 'Status', 'Aksi'] : ['Sekolah', 'Berlaku hingga', 'Aksi']).map(label => <th key={label}>{label}</th>)}</tr></thead><tbody>{data.items.map(row => <tr key={row.id}>
-        <td data-label={owner ? 'Email' : 'Sekolah'}><strong>{owner ? row.email : row.school_name}</strong></td>
-        {owner && <td data-label="Dibuat">{date(row.created_at)}</td>}<td data-label="Berlaku hingga">{date(row.expires_at)}</td>
-        {owner && <td data-label="Status"><Badge status={status(row)} /></td>}
-        <td data-label="Aksi">{owner ? status(row) === 'Menunggu konfirmasi' && <Button sm variant="danger" disabled={busy} onClick={() => setConfirm(row.id)}>Batalkan</Button> : <Button sm variant="primary" disabled={busy} onClick={() => action('accept', row.id)}>Terima undangan</Button>}</td>
-      </tr>)}</tbody></table></div>}
-      {data && !loading && <div className="instructor-footer"><span>Menampilkan {data.total ? (page - 1) * 10 + 1 : 0}?{Math.min(page * 10, data.total)} dari {data.total} undangan</span><div className="instructor-pages"><button type="button" aria-label="Halaman sebelumnya" disabled={busy || page <= 1} onClick={() => setPage(page - 1)}><Icon name="chevron-left" extra="sm" /></button><span aria-current="page">{page}</span><button type="button" aria-label="Halaman berikutnya" disabled={busy || page * 10 >= data.total} onClick={() => setPage(page + 1)}><Icon name="chevron-right" extra="sm" /></button></div></div>}
-    </section>
-    </>}
-    {creating && <Modal title="Buat undangan staff" desc="Undang staff menggunakan alamat email akun mereka." onClose={() => { if (!busy) setCreating(false); }}><form onSubmit={e => { e.preventDefault(); void action('create'); }}><div className="modal-content"><div className="form-field"><label htmlFor="invitation-email">Email staff</label><input id="invitation-email" type="email" required maxLength={254} value={email} onChange={e => setEmail(e.target.value)} disabled={busy} /><small className="hint">Penerima perlu masuk dan menerima undangan di inbox.</small></div>{error && <p role="alert" className="form-error">{error}</p>}</div><div className="modal-foot"><Button disabled={busy} onClick={() => setCreating(false)}>Batal</Button><Button type="submit" variant="primary" disabled={busy}>{busy ? 'Menyimpan...' : 'Buat undangan'}</Button></div></form></Modal>}
-    {confirm && <ConfirmDialog title="Batalkan undangan?" desc={data?.items.find(row => row.id === confirm)?.email || ''} body="Penerima tidak dapat menggunakan undangan ini setelah dibatalkan." confirmLabel="Batalkan undangan" confirmAction="revoke-invitation" busy={busy} onClose={() => { if (!busy) setConfirm(null); }} onConfirm={() => action('revoke', confirm)} />}
-  </>;
+  const filtered = (data || []).filter((row) =>
+    (row.email || "").toLowerCase().includes(query.trim().toLowerCase()),
+  );
+  const total = filtered.length;
+  const rows = filtered.slice((page - 1) * 10, page * 10);
+  const date = (value: string) =>
+    new Date(value).toLocaleString("id-ID", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+  const createButton = (
+    <Button
+      variant="primary"
+      icon="plus"
+      onClick={() => {
+        setError("");
+        setCreating(true);
+      }}
+    >
+      Tambah staff
+    </Button>
+  );
+  return (
+    <>
+      <PageHeading
+        label="Staff"
+        description="Tambah staff dan kelola akses sekolah."
+        actions={createButton}
+      />
+      {error && !creating && (
+        <div role="alert" className="instructor-action-error">
+          {error}
+        </div>
+      )}
+      <section className="panel instructor-panel invitation-panel">
+        <div className="instructor-toolbar">
+          <SearchField
+            id="staffSearch"
+            placeholder="Cari email staff..."
+            ariaLabel="Cari staff"
+            value={query}
+            onChange={(value) => {
+              setQuery(value);
+              setPage(1);
+            }}
+          />
+        </div>
+
+        {loading ? (
+          <div role="status">
+            <span className="sr-only">Memuat staff...</span>
+            <div
+              className="instructor-table-scroll loading-skeleton"
+              aria-hidden="true"
+            >
+              <table className="instructor-table">
+                <tbody>
+                  {Array.from({ length: 5 }, (_, row) => (
+                    <tr key={row}>
+                      {Array.from({ length: 5 }, (_, col) => (
+                        <td key={col}>
+                          <span className="skeleton-bar" />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : loadError ? (
+          <div role="alert" className="instructor-load-error">
+            <strong>{loadError}</strong>
+            <Button sm onClick={load}>
+              Coba lagi
+            </Button>
+          </div>
+        ) : data && !total ? (
+          <EmptyState
+            icon="users"
+            title={query.trim() ? "Staff tidak ditemukan" : "Belum ada staff"}
+            description={
+              query.trim()
+                ? "Coba kata pencarian lain."
+                : "Tambahkan staff untuk membantu mengelola sekolah."
+            }
+            action={!query.trim() && createButton}
+          />
+        ) : (
+          data && (
+            <div className="instructor-table-scroll">
+              <table className="instructor-table">
+                <thead>
+                  <tr>
+                    {[
+                      "Email",
+                      "Dibuat",
+                      "Berlaku hingga",
+                      "Status",
+                      "Aksi",
+                    ].map((label) => (
+                      <th key={label}>{label}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr key={`${row.action}-${row.id}`}>
+                      <td data-label="Email">
+                        <strong>{row.email || "Email tidak tersedia"}</strong>
+                      </td>
+                      <td data-label="Dibuat">{date(row.created_at)}</td>
+                      <td data-label="Berlaku hingga">
+                        {row.expires_at ? date(row.expires_at) : "\u2014"}
+                      </td>
+                      <td data-label="Status">
+                        <Badge status={row.status} />
+                      </td>
+                      <td data-label="Aksi">
+                        {row.action && (
+                          <Button
+                            sm
+                            variant="danger"
+                            aria-label={`${row.action === "remove" ? "Hapus staff" : "Batalkan penambahan"} ${row.email}`}
+                            disabled={busy}
+                            onClick={() => setConfirm(row)}
+                          >
+                            {row.action === "remove"
+                              ? "Hapus staff"
+                              : "Batalkan"}
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+        )}
+        {data && !loading && (
+          <div className="instructor-footer">
+            <span>
+              Menampilkan {total ? (page - 1) * 10 + 1 : 0}–
+              {Math.min(page * 10, total)} dari {total} staff
+            </span>
+            <div className="instructor-pages">
+              <button
+                type="button"
+                aria-label="Halaman sebelumnya"
+                disabled={busy || page <= 1}
+                onClick={() => setPage(page - 1)}
+              >
+                <Icon name="chevron-left" extra="sm" />
+              </button>
+              <span aria-current="page">{page}</span>
+              <button
+                type="button"
+                aria-label="Halaman berikutnya"
+                disabled={busy || page * 10 >= total}
+                onClick={() => setPage(page + 1)}
+              >
+                <Icon name="chevron-right" extra="sm" />
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
+      {creating && (
+        <Modal
+          title="Tambah staff"
+          desc="Kirim email aktivasi untuk menambahkan staff baru."
+          onClose={() => {
+            if (!busy) setCreating(false);
+          }}
+        >
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void action("create");
+            }}
+          >
+            <div className="modal-content">
+              <div className="form-field">
+                <label htmlFor="invitation-email">Email staff</label>
+                <input
+                  id="invitation-email"
+                  name="email"
+                  type="email"
+                  required
+                  maxLength={254}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={busy}
+                />
+                <small className="hint">
+                  Hanya email yang belum memiliki akun. Permintaan berhasil
+                  belum menjamin email diterima.
+                </small>
+              </div>
+              <FormError message={error} />
+            </div>
+            <div className="modal-foot">
+              <Button disabled={busy} onClick={() => setCreating(false)}>
+                Batal
+              </Button>
+              <Button type="submit" variant="primary" disabled={busy}>
+                {busy ? "Menyimpan..." : "Tambah staff"}
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+      {confirm && (
+        <ConfirmDialog
+          title={
+            confirm.action === "remove"
+              ? "Hapus akses staff?"
+              : "Batalkan penambahan staff?"
+          }
+          desc={confirm.email || "Email tidak tersedia"}
+          body={
+            confirm.action === "remove"
+              ? "Staff tidak lagi dapat mengakses sekolah. Akun dan data operasional tetap tersimpan."
+              : "Tautan aktivasi ini tidak lagi dapat digunakan untuk mengakses sekolah."
+          }
+          confirmLabel={
+            confirm.action === "remove" ? "Hapus staff" : "Batalkan penambahan"
+          }
+          confirmAction={
+            confirm.action === "remove" ? "remove-staff" : "revoke-staff"
+          }
+          busy={busy}
+          onClose={() => {
+            if (!busy) setConfirm(null);
+          }}
+          onConfirm={() => action(confirm.action!, confirm.id)}
+        />
+      )}
+    </>
+  );
 }

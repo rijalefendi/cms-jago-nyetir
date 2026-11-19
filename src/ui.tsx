@@ -422,3 +422,11 @@ export function showToast(message: string) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el!.classList.remove('show'), 3600);
 }
+
+export const HomeHeading = ({ busy = false, onReload, onSchedule }: { busy?: boolean; onReload?: () => void; onSchedule?: () => void }) => (
+  <PageHeading label="Beranda" description="Ringkasan operasional sekolah · WITA" actions={<><Button onClick={onReload} disabled={busy || !onReload}>Muat ulang</Button><Button onClick={onSchedule} disabled={!onSchedule}>Buka jadwal</Button></>} />
+);
+
+export const HomeMetricsSkeleton = () => (
+  <div role="status"><p id="setup-reason" className="sr-only">Memuat beranda…</p><div className="metrics home-metrics loading-skeleton" aria-hidden="true"><Metric label="Menunggu konfirmasi" value={<span className="skeleton-bar" />} foot="Jadwal hari ini" icon="clock" tone="yellow" /><Metric label="Sesi lewat" value={<span className="skeleton-bar" />} foot="Belum diperbarui · 30 hari terakhir" icon="alert" /></div></div>
+);
