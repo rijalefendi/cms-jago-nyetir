@@ -544,7 +544,7 @@ export function ResourceView({
         </div>
         {variant === "live" && busy ? (
           <div role="status">
-            <div className="instructor-empty">Memuat mobil…</div>
+            <div className="instructor-empty">Memuat {config.singular.toLowerCase()}…</div>
             <div className="instructor-table-scroll loading-skeleton" aria-hidden="true">
               <table className="instructor-table"><thead><tr>{[...config.columns.map(c => c.label), "Aksi"].map(label => <th key={label}>{label}</th>)}</tr></thead>
                 <tbody>{Array.from({ length: 5 }, (_, row) => <tr key={row}>{config.columns.map(c => <td key={c.key}><span className="skeleton-bar" /></td>)}<td><span className="skeleton-bar" /></td></tr>)}</tbody>
@@ -773,7 +773,6 @@ export function DemoResourcePage({ page }: { page: string }) {
   const heading = (
     <PageHeading
       label={config.label}
-      description={config.description}
       actions={
         <Button
           variant="primary"
@@ -924,6 +923,7 @@ export function ServerCrudPage({
   onDelete,
   deleteError,
   saveError,
+  notice,
 }: {
   config: ResourceConfig;
   fetchPage: (params: {
@@ -938,6 +938,7 @@ export function ServerCrudPage({
   onDelete: (row: Row) => Promise<void>;
   deleteError?: (error: unknown, row: Row) => string;
   saveError?: (message: string) => string;
+  notice?: React.ReactNode;
 }) {
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
@@ -1048,7 +1049,7 @@ export function ServerCrudPage({
     }
   };
   const heading = (
-    <PageHeading label={config.label} description={config.description} actions={
+    <PageHeading label={config.label} actions={
       <Button variant="primary" icon="plus" data-action={`add-${config.actionKey}`} onClick={() => {
         setActionError(""); setDialog({ type: "form", row: null });
       }}>Tambah {config.singular.toLowerCase()}</Button>
@@ -1060,6 +1061,7 @@ export function ServerCrudPage({
         variant="live"
         config={config}
         heading={heading}
+        banner={notice}
         state={state as any}
         busy={busy}
         loadError={loadError}

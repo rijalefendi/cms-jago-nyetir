@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { ApiError, request, supabase, type Api, type School } from './auth';
-import { LiveApp } from './live';
+import { LiveApp, emptyProgress, stepStatus, type OnboardingProgress } from './live';
 import { HomeHeading, HomeMetricsSkeleton } from './ui';
 import { DashboardShell, SidebarStateProvider } from './DashboardShell';
 import { authFormError, type AuthFormError } from './auth-errors';
@@ -12,11 +12,33 @@ import { Invitations } from './Invitations';
 import { AcceptInvitation } from './AcceptInvitation';
 
 const message = (error: unknown) => error instanceof Error ? error.message : 'Terjadi kesalahan. Silakan coba lagi.';
-const pageSlugs: Record<string, string> = { home: 'beranda', students: 'murid', sessions: 'jadwal', instructors: 'instruktur', vehicles: 'mobil', packages: 'paket', settings: 'pengaturan', invitations: 'staff' };
-const pageFromUrl = () => ['/', '/masuk', '/daftar'].includes(location.pathname) ? 'home' : Object.keys(pageSlugs).find(page => location.pathname.match(/^(?:\/schools\/[^/]+)?\/dasbor\/([^/]+)\/?$/)?.[1] === pageSlugs[page]) || 'not-found';
+const pageSlugs: Record<string, string> = { home: 'home', students: 'students', sessions: 'sessions', instructors: 'instructors', vehicles: 'vehicles', packages: 'packages', settings: 'settings', invitations: 'staff' };
+const pageFromUrl = () => ['/', '/login', '/register'].includes(location.pathname) ? 'home' : Object.keys(pageSlugs).find(page => location.pathname.match(/^(?:\/schools\/[^/]+)?\/dashboard\/([^/]+)\/?$/)?.[1] === pageSlugs[page]) || 'not-found';
+const progressStorageKey = (schoolId: string) => `atursetir-onboarding:${schoolId}`;
 
-export function AccessPage({ school, locked = false, kind, onNavigate, loggingOut = false, onLogout }: { school: School; locked?: boolean; kind: 'denied' | 'not-found' | 'setup'; onNavigate: (page: string) => void; loggingOut?: boolean; onLogout?: () => void }) {
-  return <DashboardShell school={school} page="" locked={locked} loggingOut={loggingOut} onLogout={onLogout} onNavigate={onNavigate}>
+// Onboarding guidance state: session-scoped, per school, and never authoritative —
+// only reflects data already loaded by the menus the owner has visited.
+function useOnboardingProgress(schoolId: string | undefined) {
+  const [progress, setProgress] = useState<OnboardingProgress>(() => {
+    if (!schoolId) return emptyProgress;
+    try {
+      const raw = sessionStorage.getItem(progressStorageKey(schoolId));
+      if (raw) return { ...emptyProgress, ...JSON.parse(raw) };
+    } catch { /* Corrupt storage falls back to unchecked steps. */ }
+    return emptyProgress;
+  });
+  const markProgress = useCallback((patch: Partial<OnboardingProgress>) => {
+    setProgress(current => {
+      const next = { ...current, ...patch };
+      if (schoolId) { try { sessionStorage.setItem(progressStorageKey(schoolId), JSON.stringify(next)); } catch { /* Guidance only; ignore storage failures. */ } }
+      return next;
+    });
+  }, [schoolId]);
+  return [progress, markProgress] as const;
+}
+
+export function AccessPage({ school, locked = false, kind, userEmail, onNavigate, loggingOut = false, onLogout }: { school: School; locked?: boolean; kind: 'denied' | 'not-found' | 'setup'; userEmail?: string; onNavigate: (page: string) => void; loggingOut?: boolean; onLogout?: () => void }) {
+  return <DashboardShell school={school} page="" userEmail={userEmail} locked={locked} loggingOut={loggingOut} onLogout={onLogout} onNavigate={onNavigate}>
     <section className="access-page">
       <div className="access-page-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">{kind === 'not-found' ? <><path d="M2 2L22 22" /><path d="M19.8478 14.9369C20 14.5694 20 14.1606 20 13.3431V10C20 6.22876 20 4.34315 18.8284 3.17157C17.6569 2 15.7712 2 12 2C9.33333 2 7.60948 2 6.41421 2.41421M4.41421 4.41421C4 5.60948 4 7.33333 4 10L4 14.5442C4 17.7892 4 19.4117 4.88607 20.5107C5.06508 20.7327 5.26731 20.9349 5.48933 21.1139C6.58831 22 8.21082 22 11.4558 22C12.1614 22 12.5141 22 12.8372 21.886C12.9044 21.8623 12.9702 21.835 13.0345 21.8043C13.3436 21.6564 13.593 21.407 14.0919 20.9081L17.5 17.5" /><path d="M13 21.5L13 20.7487C13 17.9203 13 16.5061 13.8787 15.6274C14.1785 15.3276 14.5406 15.1301 15 15" /></> : <><path d="M11 22C7.06358 22.0975 4 18.8075 4 15C4 11.134 7.11877 8 10.966 8C13.5444 8 15.7956 9.4077 17 11.5" /><path d="M15.5 9.5V6.5C15.5 4.01472 13.4853 2 11 2C8.51472 2 6.5 4.01472 6.5 6.5V9.5" /><path d="M12 17H20" /></>}</svg></div>
       <h1>{kind === 'not-found' ? 'Halaman tidak ditemukan' : kind === 'setup' ? 'Sekolah belum siap' : 'Akses ditolak'}</h1><p id="setup-reason">{kind === 'not-found' ? 'Halaman yang Anda cari tidak tersedia.' : kind === 'setup' ? 'Owner perlu melengkapi data sekolah.' : 'Anda tidak memiliki akses ke halaman ini.'}</p>{!locked && <button className="btn btn-primary" onClick={() => onNavigate('home')}>Kembali ke beranda</button>}
@@ -30,11 +52,11 @@ export function AuthApp({ preview }: { preview?: React.ReactNode }) {
   const [error, setError] = useState('');
   const [authPath, setAuthPath] = useState(location.pathname);
   const [invitationId] = useState(() => new URLSearchParams(location.search).get('invitation_id') || '');
-  const [recovery, setRecovery] = useState(() => location.pathname === '/lupa-kata-sandi' && new URLSearchParams(location.search).get('reset') === '1');
+  const [recovery, setRecovery] = useState(() => location.pathname === '/forgot-password' && new URLSearchParams(location.search).get('reset') === '1');
   const [attempt, setAttempt] = useState(0);
   function navigateAuth(path: string) { history.pushState(null, '', path); setAuthPath(path); setRecovery(false); setError(''); }
   useEffect(() => {
-    const pop = () => { setAuthPath(location.pathname); setRecovery(location.pathname === '/lupa-kata-sandi' && new URLSearchParams(location.search).get('reset') === '1'); };
+    const pop = () => { setAuthPath(location.pathname); setRecovery(location.pathname === '/forgot-password' && new URLSearchParams(location.search).get('reset') === '1'); };
     window.addEventListener('popstate', pop);
     return () => window.removeEventListener('popstate', pop);
   }, []);
@@ -45,11 +67,11 @@ export function AuthApp({ preview }: { preview?: React.ReactNode }) {
     const callback = location.pathname === '/auth/callback';
     const invitation = location.pathname === '/auth/invitation';
     const params = new URLSearchParams(location.hash.slice(1));
-    const recoveryLink = location.pathname === '/lupa-kata-sandi' && new URLSearchParams(location.search).get('reset') === '1';
+    const recoveryLink = location.pathname === '/forgot-password' && new URLSearchParams(location.search).get('reset') === '1';
     const invalid = (callback || recoveryLink || invitation) && (params.has('error') || new URLSearchParams(location.search).has('error'));
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, next) => {
       changed = true;
-      if (_event === 'PASSWORD_RECOVERY' && active) { setRecovery(true); setAuthPath('/lupa-kata-sandi'); history.replaceState(null, '', '/lupa-kata-sandi?reset=1'); }
+      if (_event === 'PASSWORD_RECOVERY' && active) { setRecovery(true); setAuthPath('/forgot-password'); history.replaceState(null, '', '/forgot-password?reset=1'); }
       if (active && !invalid) setSession(next);
     });
     setRestoring(true);
@@ -65,26 +87,27 @@ export function AuthApp({ preview }: { preview?: React.ReactNode }) {
         if (!active) return;
         if (invitation) history.replaceState(null, '', `/auth/invitation${location.search}`);
         if (callback) history.replaceState(null, '', '/');
-        if (recoveryLink) history.replaceState(null, '', '/lupa-kata-sandi?reset=1');
+        if (recoveryLink) history.replaceState(null, '', '/forgot-password?reset=1');
         setRestoring(false);
       });
     return () => { active = false; subscription.unsubscribe(); };
   }, [attempt]);
 
   useEffect(() => {
-    if (!restoring && session && ['/masuk', '/daftar'].includes(location.pathname)) history.replaceState(null, '', '/dasbor/beranda');
+    if (!restoring && session && ['/login', '/register'].includes(location.pathname)) history.replaceState(null, '', '/dashboard/home');
   }, [restoring, session]);
 
   if (!supabase) return <main className="auth-wrap"><p role="alert">Konfigurasi auth belum lengkap. Isi URL dan publishable key Supabase.</p></main>;
   if (restoring) return <main className="auth-wrap"><p role="status">Memulihkan sesi…</p></main>;
-  if (authPath === '/auth/invitation') return <AcceptInvitation session={session} invitationId={invitationId} restoreError={error} onComplete={() => { history.replaceState(null, '', '/dasbor/beranda'); setAuthPath('/dasbor/beranda'); }} />;
-  if (authPath === '/lupa-kata-sandi' || recovery) return <PasswordRecovery key={String(recovery)} reset={recovery} validSession={Boolean(session)} restoreError={error} onNavigate={navigateAuth} />;
-  if (!session) return <Login onForgot={() => navigateAuth('/lupa-kata-sandi')} error={error} clearError={() => setError('')} retry={() => setAttempt(n => n + 1)} />;
-  return preview ?? <SidebarStateProvider key={session.user.id}><SchoolWorkspace userId={session.user.id} /></SidebarStateProvider>;
+  if (authPath === '/auth/invitation') return <AcceptInvitation session={session} invitationId={invitationId} restoreError={error} onComplete={() => { history.replaceState(null, '', '/dashboard/home'); setAuthPath('/dashboard/home'); }} />;
+  if (authPath === '/forgot-password' || recovery) return <PasswordRecovery key={String(recovery)} reset={recovery} validSession={Boolean(session)} restoreError={error} onNavigate={navigateAuth} />;
+  if (!session) return <Login onForgot={() => navigateAuth('/forgot-password')} error={error} clearError={() => setError('')} retry={() => setAttempt(n => n + 1)} />;
+  if (preview) return React.isValidElement(preview) ? React.cloneElement(preview as React.ReactElement<{ userEmail?: string }>, { userEmail: session.user.email }) : preview;
+  return <SidebarStateProvider key={session.user.id}><SchoolWorkspace userId={session.user.id} userEmail={session.user.email} /></SidebarStateProvider>;
 }
 
 function Login({ error: restoreError, clearError, retry, onForgot }: { onForgot: () => void; error: string; clearError: () => void; retry: () => void }) {
-  const [mode, setMode] = useState<'login' | 'signup'>(() => location.pathname === '/daftar' ? 'signup' : 'login');
+  const [mode, setMode] = useState<'login' | 'signup'>(() => location.pathname === '/register' ? 'signup' : 'login');
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
   const [error, setError] = useState<AuthFormError | null>(null);
@@ -104,13 +127,13 @@ function Login({ error: restoreError, clearError, retry, onForgot }: { onForgot:
     setMode(next); setSent(false); setError(null); setClientFields({}); setShowPassword(false); clearError();
   }
   useEffect(() => {
-    if (location.pathname === '/lupa-kata-sandi') return;
-    const path = location.pathname === '/daftar' ? '/daftar' : '/masuk';
+    if (location.pathname === '/forgot-password') return;
+    const path = location.pathname === '/register' ? '/register' : '/login';
     if (location.pathname + location.search + location.hash !== path) history.replaceState(null, '', path);
     const pop = () => {
-      const next = location.pathname === '/daftar' ? 'signup' : 'login';
-      if (location.pathname === '/lupa-kata-sandi') return;
-      if (location.pathname !== '/daftar' && location.pathname !== '/masuk') history.replaceState(null, '', '/masuk');
+      const next = location.pathname === '/register' ? 'signup' : 'login';
+      if (location.pathname === '/forgot-password') return;
+      if (location.pathname !== '/register' && location.pathname !== '/login') history.replaceState(null, '', '/login');
       changeMode(next);
     };
     window.addEventListener('popstate', pop);
@@ -168,7 +191,7 @@ function Login({ error: restoreError, clearError, retry, onForgot }: { onForgot:
     {!sent && <form ref={formRef} noValidate onSubmit={submit} onBlur={blur} onChange={change} className="auth-form" aria-busy={busy}>
       <label className="form-field">Email<input name="email" type="email" autoComplete="email" required disabled={busy} aria-invalid={Boolean(fields.email)} aria-describedby={fields.email ? 'auth-email-error' : undefined} />{fields.email && <small id="auth-email-error" className="auth-field-error" role="alert">{fields.email}</small>}</label>
       <div className="form-field">
-        <div className="auth-password-label"><label htmlFor="auth-password">Kata sandi</label>{mode === 'login' && <a href="/lupa-kata-sandi" className="inline-link" aria-disabled={busy} onClick={e => { e.preventDefault(); if (!busy) onForgot(); }}>Lupa kata sandi?</a>}</div>
+        <div className="auth-password-label"><label htmlFor="auth-password">Kata sandi</label>{mode === 'login' && <a href="/forgot-password" className="inline-link" aria-disabled={busy} onClick={e => { e.preventDefault(); if (!busy) onForgot(); }}>Lupa kata sandi?</a>}</div>
         <div className="auth-password-control">
           <input id="auth-password" name="password" type={showPassword ? 'text' : 'password'} autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} minLength={mode === 'signup' ? 8 : undefined} required disabled={busy} aria-invalid={Boolean(fields.password)} aria-describedby={[mode === 'signup' ? 'auth-password-hint' : '', fields.password ? 'auth-password-error' : ''].filter(Boolean).join(' ') || undefined} />
           <button type="button" className="auth-password-toggle" aria-label={showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'} aria-controls="auth-password" aria-pressed={showPassword} disabled={busy} onClick={() => setShowPassword(value => !value)}>
@@ -184,11 +207,11 @@ function Login({ error: restoreError, clearError, retry, onForgot }: { onForgot:
       {formError && <div className="notice auth-error" role="alert"><p>{formError}</p>{error?.code && <small>Kode: {error.code}{error.status !== undefined && error.status > 0 ? ` · HTTP ${error.status}` : ''}</small>}{restoreError && <button type="button" className="btn btn-quiet" onClick={retry}>Coba lagi</button>}</div>}
       <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? 'Memproses…' : mode === 'login' ? 'Masuk' : 'Daftar akun'}</button>
     </form>}
-    <p className="auth-switch">{!sent && (mode === 'login' ? 'Belum punya akun? ' : 'Sudah punya akun? ')}<button className="inline-link" disabled={busy} data-auth-mode={mode === 'login' ? 'signup' : 'login'} onClick={() => { const next = mode === 'login' && !sent ? 'signup' : 'login'; history.pushState(null, '', next === 'signup' ? '/daftar' : '/masuk'); changeMode(next); }}>{mode === 'login' && !sent ? 'Daftar gratis' : sent ? 'Kembali ke Masuk' : 'Masuk'}</button></p>
+    <p className="auth-switch">{!sent && (mode === 'login' ? 'Belum punya akun? ' : 'Sudah punya akun? ')}<button className="inline-link" disabled={busy} data-auth-mode={mode === 'login' ? 'signup' : 'login'} onClick={() => { const next = mode === 'login' && !sent ? 'signup' : 'login'; history.pushState(null, '', next === 'signup' ? '/register' : '/login'); changeMode(next); }}>{mode === 'login' && !sent ? 'Daftar gratis' : sent ? 'Kembali ke Masuk' : 'Masuk'}</button></p>
   </section></LoginLayout>;
 }
 
-function SchoolWorkspace({ userId }: { userId: string }) {
+function SchoolWorkspace({ userId, userEmail }: { userId: string; userEmail?: string }) {
   const [school, setSchool] = useState<School | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -199,6 +222,7 @@ function SchoolWorkspace({ userId }: { userId: string }) {
   const [saved, setSaved] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [progress, markProgress] = useOnboardingProgress(school?.id);
   const serial = useRef(0);
   const bootstrapped = useRef(false);
   const api: Api = useCallback(async (path, method, body) => {
@@ -226,7 +250,7 @@ function SchoolWorkspace({ userId }: { userId: string }) {
       if (current === serial.current) {
         const next = schools[0] || null;
         if (!bootstrapped.current && (!next || (next.role === 'owner' && !next.setup_complete))) {
-          history.replaceState(null, '', '/dasbor/pengaturan');
+          history.replaceState(null, '', '/dashboard/settings');
           setSettings(true); setShowCreate(true); setOperationPage('home');
         }
         bootstrapped.current = true;
@@ -240,8 +264,8 @@ function SchoolWorkspace({ userId }: { userId: string }) {
   }, [userId]);
   useEffect(() => { void load(); return () => { serial.current++; }; }, [load, attempt]);
   useEffect(() => {
-    if (!loading && !error && school?.setup_complete && (location.pathname === '/' || (operationPage !== 'not-found' && /^\/schools\/[^/]+\/dasbor\//.test(location.pathname)))) {
-      history.replaceState(null, '', `/dasbor/${pageSlugs[settings ? 'settings' : operationPage]}`);
+    if (!loading && !error && school?.setup_complete && (location.pathname === '/' || (operationPage !== 'not-found' && /^\/schools\/[^/]+\/dashboard\//.test(location.pathname)))) {
+      history.replaceState(null, '', `/dashboard/${pageSlugs[settings ? 'settings' : operationPage]}`);
     }
   }, [loading, error, school, settings, operationPage]);
   useEffect(() => {
@@ -257,7 +281,7 @@ function SchoolWorkspace({ userId }: { userId: string }) {
   }, []);
   function navigate(page: string) {
     if (!pageSlugs[page] || (page === 'settings' && school && school.role !== 'owner') || (page === 'invitations' && (school?.role !== 'owner' || !school.setup_complete))) return;
-    const path = `/dasbor/${pageSlugs[page]}`;
+    const path = `/dashboard/${pageSlugs[page]}`;
     if (location.pathname !== path) history.pushState(null, '', path);
     setSettings(page === 'settings');
     setShowCreate(page === 'settings');
@@ -277,13 +301,21 @@ function SchoolWorkspace({ userId }: { userId: string }) {
   const locked = !school?.setup_complete;
   const invitationPage = operationPage === 'invitations';
   const denied = school && school.role !== 'owner' && (settings || operationPage === 'invitations');
-  if (!loading && !error && school && (denied || operationPage === 'not-found' || (locked && school.role === 'staff'))) return <AccessPage school={school} locked={locked} kind={operationPage === 'not-found' ? 'not-found' : locked && !denied ? 'setup' : 'denied'} loggingOut={loggingOut} onLogout={logout} onNavigate={navigate} />;
-  if (!loading && !error && school?.role === 'owner' && school.setup_complete && !settings && invitationPage) return <DashboardShell school={school} page="invitations" loggingOut={loggingOut} onLogout={logout} onNavigate={navigate}><Invitations api={api} schoolId={school.id} /></DashboardShell>;
-  if (!loading && !error && !locked && !settings) return <LiveApp school={school!} api={api} initialPage={operationPage} onNavigate={navigate} loggingOut={loggingOut} onLogout={logout} />;
-  return <DashboardShell school={school} page={loading ? 'home' : 'settings'} locked={loading || !!error || locked} loggingOut={loggingOut} onLogout={logout} onNavigate={navigate}>
+  const stepsReady = progress.packages === true && progress.instructors === true && progress.vehicles === true && progress.students === true;
+  const resourcesStep = progress.instructors === true && progress.vehicles === true ? true : progress.instructors === false || progress.vehicles === false ? false : null;
+  const nextStep = stepsReady ? null : progress.packages !== true ? { page: 'packages', label: 'Buka menu Paket' }
+    : progress.instructors !== true ? { page: 'instructors', label: 'Buka menu Instruktur' }
+    : progress.vehicles !== true ? { page: 'vehicles', label: 'Buka menu Mobil' }
+    : { page: 'students', label: 'Buka menu Murid' };
+  if (!loading && !error && school && (denied || operationPage === 'not-found' || (locked && school.role === 'staff'))) return <AccessPage school={school} locked={locked} kind={operationPage === 'not-found' ? 'not-found' : locked && !denied ? 'setup' : 'denied'} userEmail={userEmail} loggingOut={loggingOut} onLogout={logout} onNavigate={navigate} />;
+  if (!loading && !error && school?.role === 'owner' && school.setup_complete && !settings && invitationPage) return <DashboardShell school={school} page="invitations" userEmail={userEmail} loggingOut={loggingOut} onLogout={logout} onNavigate={navigate}><Invitations api={api} schoolId={school.id} /></DashboardShell>;
+  if (!loading && !error && !locked && !settings) return <LiveApp school={school!} api={api} initialPage={operationPage} userEmail={userEmail} onNavigate={navigate} loggingOut={loggingOut} onLogout={logout} progress={progress} markProgress={markProgress} />;
+  return <DashboardShell school={school} page={loading ? 'home' : 'settings'} userEmail={userEmail} locked={loading || !!error || locked} loggingOut={loggingOut} onLogout={logout} onNavigate={navigate}>
     {loading ? <><HomeHeading busy /><HomeMetricsSkeleton /></> : error ? <section className="panel panel-pad"><p id="setup-reason" role="alert">{error}</p><button className="btn btn-primary" onClick={load}>Coba lagi</button>{unauthorized && <button className="btn btn-quiet" onClick={logout}>Masuk ulang</button>}</section>
-      : <><div className="page-heading"><div><div className="eyebrow">PENGATURAN</div><h1>Pengaturan Sekolah</h1><p className="page-sub">{school ? 'Profil dan jam operasional sekolah dalam WITA.' : 'Buat sekolah dengan mengisi profil dan jam operasional (WITA).'}</p></div></div>
-        {locked ? <p id="setup-reason" className="notice">Lengkapi data sekolah terlebih dahulu untuk mengakses menu operasional.</p> : <button className="inline-link" onClick={() => navigate(operationPage)}>Kembali ke operasional</button>}
+      : <><div className="page-heading"><div><h1>Pengaturan Sekolah</h1><p className="page-sub">{school ? 'Profil dan jam operasional sekolah dalam WITA.' : 'Buat sekolah dengan mengisi profil dan jam operasional (WITA).'}</p></div></div>
+        {locked ? <p id="setup-reason" className="notice">Lengkapi data sekolah terlebih dahulu untuk mengakses menu operasional.</p>
+          : stepsReady ? <section className="notice setup-next-steps" aria-label="Status persiapan operasional"><strong>Semua prasyarat operasional sudah lengkap.</strong><p>Paket, instruktur, mobil, dan murid sudah siap digunakan untuk penjadwalan.</p><div className="student-detail-actions"><button type="button" className="btn btn-primary btn-sm" onClick={() => navigate('sessions')}>Buka menu Jadwal</button><button type="button" className="inline-link" onClick={() => navigate(operationPage)}>Kembali ke operasional</button></div></section>
+          : <section className="notice setup-next-steps" aria-label="Langkah persiapan operasional"><strong>Sekolah siap dioperasikan.</strong><p>Urutan persiapan jadwal pertama: 1. Paket kursus {stepStatus(progress.packages)} → 2. Instruktur &amp; Mobil {stepStatus(resourcesStep)} → 3. Murid &amp; paketnya {stepStatus(progress.students)} → 4. Jadwal sesi.</p><p>Progres tercatat saat menu terkait dibuka. Lanjutkan langkah yang belum siap:</p><div className="student-detail-actions">{nextStep && <button type="button" className="btn btn-primary btn-sm" onClick={() => navigate(nextStep.page)}>{nextStep.label}</button>}<button type="button" className="inline-link" onClick={() => navigate(operationPage)}>Kembali ke operasional</button></div></section>}
         <SchoolProfile showHeading={false} key={school?.id || 'new'} school={school} api={api} saved={saved} onSaved={async () => { setSettings(true); setSaved(true); await load(); }} retryAccess={() => setAttempt(n => n + 1)} />
       </>}
   </DashboardShell>;

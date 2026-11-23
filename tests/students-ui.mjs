@@ -17,7 +17,7 @@ const history = [
   { id: 'cancel', student_id: 'student-10', enrollment_id: 'enrollment', session_date: '2099-01-02', start_time: '09:00', end_time: '10:00', status: 'Dibatalkan' },
   { id: 'absent', student_id: 'student-10', enrollment_id: 'enrollment', session_date: '2099-01-03', start_time: '09:00', end_time: '10:00', status: 'Tidak hadir' },
 ];
-const f = fixture({ initial: session(), url: 'http://localhost/dasbor/murid', fetch: async (url, options) => {
+const f = fixture({ initial: session(), url: 'http://localhost/dashboard/students', fetch: async (url, options) => {
   const u = new URL(url, 'http://localhost');
   if (options.method && options.method !== 'GET') {
     if (u.pathname.endsWith('/student_enrollments') && rejectPurchase) return response({ error: 'Paket belum dapat ditambahkan. Silakan coba lagi.' }, 409);
@@ -39,7 +39,7 @@ const f = fixture({ initial: session(), url: 'http://localhost/dasbor/murid', fe
   }
   if (u.pathname.endsWith('/students')) {
     assert.ok(u.searchParams.has('page')); assert.ok(['10', '100'].includes(u.searchParams.get('page_size')));
-    assert.equal(u.searchParams.has('sort'), false);
+    assert.ok(!u.searchParams.has('sort') || u.searchParams.get('sort') === 'created_at', 'list sorting uses the newest-first default contract');
     if (fail) { fail = false; return response({ error: 'offline' }, 502); }
     const page = Number(u.searchParams.get('page'));
     const filtered = students.filter(s => s.name.includes(u.searchParams.get('search') || ''));
@@ -60,11 +60,11 @@ const f = fixture({ initial: session(), url: 'http://localhost/dasbor/murid', fe
 await waitFor(() => f.document.querySelectorAll('.student-panel tbody tr').length === 10);
 assert.match(f.document.querySelector('.instructor-footer').textContent, /23 murid/);
 f.document.querySelector('[data-action="sort-student"]').click();
-await waitFor(() => f.document.querySelector('.student-panel tbody tr')?.textContent.includes('Murid 22'));
-f.document.querySelector('[aria-label="Halaman berikutnya"]').click();
-await waitFor(() => f.document.querySelector('.student-panel tbody tr')?.textContent.includes('Murid 12'));
-f.document.querySelector('[data-action="sort-student"]').click();
 await waitFor(() => f.document.querySelector('.student-panel tbody tr')?.textContent.includes('Murid 00'));
+f.document.querySelector('[aria-label="Halaman berikutnya"]').click();
+await waitFor(() => f.document.querySelector('.student-panel tbody tr')?.textContent.includes('Murid 10'));
+f.document.querySelector('[data-action="sort-student"]').click();
+await waitFor(() => f.document.querySelector('.student-panel tbody tr')?.textContent.includes('Murid 22'));
 f.document.querySelector('[aria-label="Halaman terakhir"]').click();
 await waitFor(() => f.document.querySelectorAll('.student-panel tbody tr').length === 3);
 const search = f.document.getElementById('liveStudentSearch');
@@ -177,7 +177,7 @@ assert.match(dialogText(), /tambahkan paket/i);
 noActivePackages = false;
 [...f.document.querySelectorAll('[role="dialog"] button')].find(b => b.textContent === 'Tambah paket').click();
 await waitFor(() => f.document.querySelector('#student-package') && !f.document.querySelector('#student-package').disabled);
-const newSelect = f.document.querySelector('#student-package');
+const newSelect = f.document.querySelector('.student-purchase select');
 newSelect.value = 'package'; newSelect.dispatchEvent(new f.dom.window.Event('change', { bubbles: true }));
 [...f.document.querySelectorAll('[role="dialog"] button')].find(b => b.textContent === 'Tambahkan paket').click();
 await waitFor(() => writes.length === 4);

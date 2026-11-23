@@ -6,7 +6,9 @@ import { liveConfigured } from './auth';
 import { DemoDashboard } from './DemoDashboard';
 
 const oldPath = location.pathname;
-const newPath = oldPath.replace(/^\/login$/, '/masuk').replace(/^\/(?:register|regis)$/, '/daftar').replace(/^\/lupa-password$/, '/lupa-kata-sandi').replace(/^\/dashboard(?=\/|$)/, '/dasbor');
+const legacyAuth: Record<string, string> = { '/masuk': '/login', '/daftar': '/register', '/regis': '/register', '/lupa-password': '/forgot-password', '/lupa-kata-sandi': '/forgot-password' };
+const legacyPages: Record<string, string> = { beranda: 'home', dasbor: 'home', murid: 'students', jadwal: 'sessions', instruktur: 'instructors', mobil: 'vehicles', paket: 'packages', laporan: 'reports', pengaturan: 'settings' };
+const newPath = legacyAuth[oldPath] || oldPath.replace(/^(\/schools\/[^/]+)?\/(?:dasbor|dashboard)\/([^/]+)(\/?)$/, (_, school = '', page, trailing) => `${school}/dashboard/${legacyPages[page] || page}${trailing}`).replace(/^\/dasbor(?=\/|$)/, '/dashboard');
 if (newPath !== oldPath) history.replaceState(null, '', newPath + location.search + location.hash);
 
 const preview = import.meta.env.DEV && import.meta.env.VITE_AUTH_DASHBOARD_PREVIEW === 'true';

@@ -8,6 +8,7 @@ export function DatePicker(props: Omit<React.InputHTMLAttributes<HTMLInputElemen
   const root = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const toggle = useRef<HTMLButtonElement>(null);
+  const focusCalendar = useRef(true);
   const [open, setOpen] = useState(false);
   const [cursor, setCursor] = useState(() => String(props.defaultValue || today()));
   const [month, setMonth] = useState(() => parseDate(cursor));
@@ -37,7 +38,7 @@ export function DatePicker(props: Omit<React.InputHTMLAttributes<HTMLInputElemen
     return () => document.removeEventListener('pointerdown', outside);
   }, [open]);
   useEffect(() => {
-    if (open) root.current?.querySelector<HTMLButtonElement>(`[data-date="${cursor}"]`)?.focus();
+    if (open && focusCalendar.current) root.current?.querySelector<HTMLButtonElement>(`[data-date="${cursor}"]`)?.focus();
   }, [open, cursor]);
 
   function close() {
@@ -54,6 +55,7 @@ export function DatePicker(props: Omit<React.InputHTMLAttributes<HTMLInputElemen
   function move(date: Date) {
     const value = isoDate(date);
     if (unavailable(value)) return;
+    focusCalendar.current = true;
     setCursor(value);
     setMonth(new Date(date.getFullYear(), date.getMonth(), 1, 12));
   }
@@ -65,6 +67,13 @@ export function DatePicker(props: Omit<React.InputHTMLAttributes<HTMLInputElemen
     date.setDate(Math.min(day, new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()));
     move(date);
   }
+  function openCalendar(focus: boolean) {
+    if (props.disabled || props.readOnly) return;
+    focusCalendar.current = focus;
+    const value = input.current?.value || witaToday;
+    const bounded = props.min && value < String(props.min) ? String(props.min) : props.max && value > String(props.max) ? String(props.max) : value;
+    setCursor(bounded); setMonth(parseDate(bounded)); setOpen(true);
+  }
 
   return (
     <div className="date-picker" ref={root} onBlur={event => {
@@ -73,14 +82,12 @@ export function DatePicker(props: Omit<React.InputHTMLAttributes<HTMLInputElemen
       if (open && event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); }
     }}>
       <div className="date-picker-control">
-        <input {...props} type="date" ref={input} />
+        <input {...props} type="date" ref={input} onClick={event => { props.onClick?.(event); if (!event.defaultPrevented) openCalendar(false); }} />
         <button ref={toggle} type="button" className="date-picker-toggle" disabled={props.disabled}
           aria-label={`Pilih ${props['aria-label'] || 'tanggal'}`} aria-expanded={open} aria-controls={calendarId}
           onClick={() => {
             if (open) { close(); return; }
-            const value = input.current?.value || witaToday;
-            const bounded = props.min && value < String(props.min) ? String(props.min) : props.max && value > String(props.max) ? String(props.max) : value;
-            setCursor(bounded); setMonth(parseDate(bounded)); setOpen(true);
+            openCalendar(true);
           }}>
           <svg className="icon sm" aria-hidden="true"><use href="#i-calendar" /></svg>
         </button>

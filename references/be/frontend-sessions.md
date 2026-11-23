@@ -22,13 +22,13 @@ Enrollment bukan pembayaran: respons enrollment tidak membuktikan pembayaran sud
 
 ## Daftar untuk form dan pemilihan resource
 
-| Kebutuhan                    | Request                                                   | Bentuk respons                                                                    |
-| ---------------------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| Cari siswa                   | `GET /students?search=Ayu&page=1&page_size=10`            | `{items,total,page,pageSize}`                                                     |
-| Katalog paket                | `GET /packages`                                           | Array; pilih `active=true` di FE karena filter active belum didukung endpoint ini |
-| Enrollment aktif milik siswa | `GET /student_enrollments?student_id={uuid}&status=Aktif` | Array snapshot enrollment                                                         |
-| Instruktur kompatibel        | `GET /instructors?active=true&transmission=Matic`         | Array, termasuk instruktur `Matic & Manual`                                       |
-| Mobil kompatibel             | `GET /vehicles?active=true&transmission=Matic`            | Array                                                                             |
+| Kebutuhan | Request | Bentuk respons |
+| --- | --- | --- |
+| Cari siswa | `GET /students?search=Ayu&page=1&page_size=10` | `{items,total,page,pageSize}` |
+| Katalog paket | `GET /packages` | Array; pilih `active=true` di FE karena filter active belum didukung endpoint ini |
+| Enrollment aktif milik siswa | `GET /student_enrollments?student_id={uuid}&status=Aktif` | Array snapshot enrollment |
+| Instruktur kompatibel | `GET /instructors?active=true&transmission=Matic` | Array, termasuk instruktur `Matic & Manual` |
+| Mobil kompatibel | `GET /vehicles?active=true&transmission=Matic` | Array |
 
 - Pencarian siswa berupa substring nama literal, tidak peka kapital, maksimal 100 karakter setelah trim; urutan `name ASC, id ASC`.
 - Siswa tanpa `page` dan `page_size` menghasilkan array. Salah satu parameter mengaktifkan pagination, default page 1/page_size 10; batas page 1–1000000, page_size 1–100.
@@ -37,7 +37,7 @@ Enrollment bukan pembayaran: respons enrollment tidak membuktikan pembayaran sud
 - Enrollment menerima status `Aktif`, `Selesai`, `Dibatalkan`. Tanpa `page`/`page_size` respons tetap array maksimal 1000. Salah satu parameter mengaktifkan `{items,total,page,pageSize}`, default page 1/page_size 10, batas page 1–1000000/page_size 1–100, urutan `id ASC`. Status bisa dibaca/difilter, tetapi belum ada endpoint untuk mengubahnya.
 - Array dibatasi backend (1000 record); jangan menganggapnya selalu seluruh data. Paket/mobil belum punya pagination. Query yang tidak didukung tidak diteruskan ke data service.
 - Respons mobil tidak memiliki `image_url`; hapus gambar mobil dari tipe dan tampilan FE.
-- Detail resource melalui `GET /{resource}/{id}` menghasilkan array satu objek atau `[]`, bukan objek tunggal.
+- Detail resource melalui `GET /{resource}/{id}` menghasilkan array satu objek jika ditemukan; ID yang tidak ditemukan menghasilkan HTTP 404. List kosong tetap `[]`.
 
 ## List kalender
 
@@ -74,7 +74,7 @@ List selalu berupa objek pagination. Tanggal wajib untuk kalender; riwayat per s
 ## Detail
 
 `GET /api/v1/schools/{school_id}/sessions/{session_id}` tidak membutuhkan rentang tanggal.
-Respons tetap HTTP 200 berupa array satu objek, atau `[]` bila tidak ada sesi yang cocok pada sekolah tersebut.
+Respons HTTP 200 berupa array satu objek; jika sesi tidak ditemukan pada sekolah tersebut, respons HTTP 404.
 
 ## Create dan update
 
@@ -102,6 +102,11 @@ Body JSON lengkap untuk create dan update biasa:
 - Transmisi: `Matic` atau `Manual`, harus sama dengan snapshot enrollment dan mobil; instruktur harus kompatibel.
 - Selisih jam wajib tepat `session_duration_minutes` snapshot enrollment, termasuk detik. Gunakan snapshot pembelian, bukan katalog terbaru.
 - Status: `Menunggu konfirmasi`, `Terkonfirmasi`, `Selesai`, `Dibatalkan`, `Tidak hadir`.
+- Update hanya boleh jika status tersimpan masih `Menunggu konfirmasi` atau `Terkonfirmasi`.
+  Setelah `Selesai`, `Dibatalkan`, atau `Tidak hadir`, seluruh data sesi terkunci
+  bagi owner maupun staff, termasuk request dengan data/status yang sama.
+  Ini berlaku untuk tanggal, jam, siswa/enrollment, transmisi dan pilihan mobil/instruktur
+  pada sesi; bukan pengeditan master mobil/instruktur.
 - PATCH biasa bukan partial update: kirim seluruh detail di atas, termasuk saat mengubah status menjadi Selesai/Tidak hadir.
 - Jangan mengirim identitas/tenant dari body. Backend mengabaikan field ekstra dan hanya membentuk parameter RPC dari field yang didukung.
 - Tidak ada DELETE; gunakan pembatalan.
@@ -114,6 +119,7 @@ Khusus pembatalan sesi yang sudah ada, PATCH cukup:
 
 Detail jadwal lain diabaikan pada pembatalan. Backend mengirim null untuk parameter RPC yang tidak dipakai, dan SQL hanya mengubah status.
 Pembatalan tidak memvalidasi ulang jam/transmisi historis tetapi tetap membutuhkan akses sekolah dan setup lengkap.
+Pembatalan juga hanya boleh dari status tersimpan Menunggu konfirmasi/Terkonfirmasi.
 
 Respons sukses create/update/pembatalan: HTTP 200, JSON string UUID sesi, bukan objek sesi.
 Setelah sukses, muat ulang kalender pada rentang aktif. Jangan otomatis mengulang request tulis jika koneksi putus.
@@ -126,11 +132,14 @@ Setelah sukses, muat ulang kalender pada rentang aktif. Jangan otomatis mengulan
 - 405: method/path tidak didukung.
 - 409 `code: "schedule_conflict"`: jadwal siswa/instruktur/mobil bentrok.
 - 409 `code: "session_allowance_exhausted"`: kuota sesi enrollment habis.
+- 409 `code: "session_status_locked"`: sesi sudah final; jangan ulangi request tulis.
+  Tampilkan pesan, muat ulang detail/kalender serta progres enrollment, lalu jadikan sesi read-only.
+  FE harus tetap menangani error ini jika status berubah setelah form dibuka.
 - 400 `code: "outside_operating_hours"`: sesi di luar jam buka.
 - PUT Settings juga mengembalikan 409 `code: "operating_hours_conflict"` jika perubahan jam tidak cocok dengan sesi mendatang.
 - 400 `code: "enrollment_transmission_mismatch"`: transmisi berbeda dari snapshot pembelian.
 - 400 `code: "enrollment_duration_mismatch"`: durasi berbeda dari snapshot pembelian.
-- Keenam error bisnis tersebut berbentuk `{"code":"...","message":"..."}`. Error SQL lainnya tetap dipetakan sesuai kontrak HTTP; baca `message` selain `error`.
+- Error bisnis tersebut berbentuk `{"code":"...","message":"..."}`. Error SQL lainnya tetap dipetakan sesuai kontrak HTTP; baca `message` selain `error`.
 - 502: koneksi data gagal atau respons kalender/count tidak valid; tampilkan retry, bukan kalender kosong.
 
 Aturan transaksi, kuota, resource aktif/kompatibel, jam operasional, dan konflik tetap dijaga `save_school_session` dan trigger SQL.
@@ -138,6 +147,8 @@ Gunakan schema terbaru pada database baru. ensure tidak memigrasikan schema lama
 
 ## Checklist
 
+- [ ] Edit detail, ubah status dan batalkan hanya tersedia untuk status Menunggu konfirmasi/Terkonfirmasi; tiga status final read-only.
+- [ ] Tangani 409 `session_status_locked` dengan muat ulang data tanpa retry otomatis.
 - [ ] Siswa lama dipakai ulang untuk pembelian tambahan; POST siswa/paket menangani HTTP 201 dengan JSON string UUID.
 - [ ] Enrollment dibuat hanya dari ID siswa/paket dan responsnya dibaca sebagai string UUID.
 - [ ] Form jadwal memakai transmisi/durasi snapshot, bukan katalog terbaru; resource difilter aktif/kompatibel.
@@ -148,6 +159,7 @@ Gunakan schema terbaru pada database baru. ensure tidak memigrasikan schema lama
 - [ ] Update biasa mengirim detail lengkap; cancel mengirim status saja.
 - [ ] Error konflik mempertahankan input; error jaringan tidak mengosongkan kalender.
 - [ ] Sukses create/update/cancel memuat ulang rentang aktif.
+
 
 ## Katalog paket dan snapshot pembelian
 
@@ -175,20 +187,26 @@ PATCH enrollment, termasuk pengubahan status, ditolak langsung oleh API dengan H
 - Sesi `Menunggu konfirmasi`, `Terkonfirmasi`, dan `Selesai` dihitung terhadap kuota snapshot. `Dibatalkan` dan `Tidak hadir` tidak dihitung; ini perilaku backend saat ini.
 - Jangan menyimpulkan kuota tersisa dari satu halaman kalender. GET enrollment sekarang menyediakan agregat seluruh tanggal per pembelian; penyimpanan tetap dapat ditolak `session_allowance_exhausted` jika kuota berubah setelah pembacaan.
 - Pembatalan hanya mengecualikan validasi historis pada sesi yang sudah ada. POST berstatus Dibatalkan tetap membutuhkan detail lengkap.
-- Error `P0002` pada penulisan RPC menghasilkan HTTP 404: siswa pembelian, sesi yang diubah/dibatalkan, atau akun staff tidak ditemukan. GET detail tetap mengembalikan array kosong bila tidak ditemukan. Pertahankan fallback `message`/`error` untuk error SQL lain.
+- Error `P0002` pada penulisan RPC menghasilkan HTTP 404: siswa pembelian, sesi yang diubah/dibatalkan, atau akun staff tidak ditemukan. GET detail juga menghasilkan HTTP 404 bila tidak ditemukan. Pertahankan fallback `message`/`error` untuk error SQL lain.
 
 ## Perubahan yang perlu diperiksa pada FE lama
 
-| Asumsi lama                                  | Kontrak sekarang                                                             |
-| -------------------------------------------- | ---------------------------------------------------------------------------- |
-| Kalender berupa array tanpa rentang          | Tanggal wajib, maksimal 31 hari, respons pagination                          |
-| Paket cukup nama dan jumlah sesi             | Harga `normal_price`, transmisi, dan durasi wajib; field promo sudah dihapus |
-| Ketentuan jadwal dibaca dari katalog terbaru | Gunakan snapshot enrollment saat pembelian                                   |
-| FE menentukan harga/kuota enrollment         | Kirim dua ID; backend menyalin harga katalog saat pembelian menjadi snapshot |
-| PATCH sesi selalu parsial                    | Detail lengkap, kecuali pembatalan sesi yang sudah ada                       |
-| Enrollment bisa diedit/status diubah         | PATCH ditolak HTTP 405                                                       |
+| Asumsi lama | Kontrak sekarang |
+| --- | --- |
+| Kalender berupa array tanpa rentang | Tanggal wajib, maksimal 31 hari, respons pagination |
+| Paket cukup nama dan jumlah sesi | Harga `normal_price`, transmisi, dan durasi wajib; field promo sudah dihapus |
+| Ketentuan jadwal dibaca dari katalog terbaru | Gunakan snapshot enrollment saat pembelian |
+| FE menentukan harga/kuota enrollment | Kirim dua ID; backend menyalin harga katalog saat pembelian menjadi snapshot |
+| PATCH sesi selalu parsial | Detail lengkap, kecuali pembatalan sesi yang sudah ada |
+| Enrollment bisa diedit/status diubah | PATCH ditolak HTTP 405 |
 
 Referensi payload lengkap: `internal/httpapi/docs/openapi.json` (`/openapi.json`, UI `/docs`). Dokumen ini menjelaskan flow; SQL tetap dikelola repo BE.
+
+Penguncian seluruh update disediakan oleh `db/migrations/20261120_lock_session_updates.sql`
+untuk database lama. Kode dan migrasi tersedia; penerapan ke development/production
+belum diverifikasi pada handover ini. Migrasi dikerjakan dari repo BE, bukan FE;
+startup/ensure tidak menerapkannya otomatis. Pastikan backend/database target sudah
+diperbarui sebelum menyatakan penguncian server terverifikasi.
 
 ## Progres lengkap dan riwayat per siswa (14 November 2026)
 
@@ -202,14 +220,14 @@ GET /student_enrollments?student_id={uuid}&page=1&page_size=100
 
 Setiap enrollment, termasuk GET detail, memiliki enam field baru yang dihitung database dari seluruh sesi pembelian itu, tanpa batas tanggal atau halaman kalender:
 
-| Field                | Makna                                                                                   |
-| -------------------- | --------------------------------------------------------------------------------------- |
-| `completed_sessions` | Sesi berstatus Selesai                                                                  |
+| Field | Makna |
+| --- | --- |
+| `completed_sessions` | Sesi berstatus Selesai |
 | `scheduled_sessions` | Menunggu konfirmasi + Terkonfirmasi, termasuk sesi lama yang statusnya belum diperbarui |
-| `used_sessions`      | completed_sessions + scheduled_sessions; kuota terpakai/direservasi                     |
-| `remaining_sessions` | total_sessions - used_sessions                                                          |
-| `cancelled_sessions` | Sesi Dibatalkan, tidak memakai kuota                                                    |
-| `missed_sessions`    | Sesi Tidak hadir, tidak memakai kuota                                                   |
+| `used_sessions` | completed_sessions + scheduled_sessions; kuota terpakai/direservasi |
+| `remaining_sessions` | total_sessions - used_sessions |
+| `cancelled_sessions` | Sesi Dibatalkan, tidak memakai kuota |
+| `missed_sessions` | Sesi Tidak hadir, tidak memakai kuota |
 
 Contoh pada enrollment dengan `total_sessions: 5`:
 
@@ -238,6 +256,7 @@ Jika salah satu tanggal dikirim, kedua tanggal wajib valid dan batas 31 hari tet
 
 Setelah create/update/cancel sesi, muat ulang progres enrollment dan halaman riwayat/kalender yang sedang ditampilkan. Respons adalah snapshot saat query; validasi saat penyimpanan tetap menjadi keputusan akhir untuk kuota dan konflik.
 
+
 ## Beranda
 
 `GET /api/v1/schools/{school_id}/home` memakai Bearer access token dan memerlukan membership serta setup sekolah lengkap. Tidak memerlukan parameter tanggal atau pagination.
@@ -248,17 +267,7 @@ Setelah create/update/cancel sesi, muat ulang progres enrollment dan halaman riw
   "today_count": 2,
   "pending_count": 1,
   "overdue_count": 0,
-  "today_sessions": [
-    {
-      "id": "uuid",
-      "student_id": "uuid",
-      "student_name": "Ayu",
-      "session_date": "2026-11-14",
-      "start_time": "09:00:00",
-      "end_time": "10:00:00",
-      "status": "Menunggu konfirmasi"
-    }
-  ],
+  "today_sessions": [{"id": "uuid", "student_id": "uuid", "student_name": "Ayu", "session_date": "2026-11-14", "start_time": "09:00:00", "end_time": "10:00:00", "status": "Menunggu konfirmasi"}],
   "overdue_sessions": []
 }
 ```

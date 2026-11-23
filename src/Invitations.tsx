@@ -197,7 +197,6 @@ export function Invitations({ api, schoolId }: { api: Api; schoolId: string }) {
     <>
       <PageHeading
         label="Staff"
-        description="Tambah staff dan kelola akses sekolah."
         actions={createButton}
       />
       {error && !creating && (

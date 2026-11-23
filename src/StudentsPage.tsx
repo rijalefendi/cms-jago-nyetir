@@ -1,6 +1,6 @@
 ﻿import React, { useEffect, useState } from 'react';
 import { instructorConfig, ResourceView, useTableState, type ResourceConfig, type Row } from './resource';
-import { Badge, Button, DemoNotice, FormModal, Icon, Modal, PageHeading } from './ui';
+import { Badge, Button, DemoNotice, FormModal, Icon, Modal, PageHeading, SearchSelect } from './ui';
 import { createDemoStore } from './demoStore.mjs';
 import { seed, isoDay } from './seed.mjs';
 import type { Api } from './auth';
@@ -13,7 +13,7 @@ const config: ResourceConfig = {
   columns: [{ key: 'name', label: 'Murid', sortable: true }, { key: 'phone', label: 'Telepon' }, { key: 'package', label: 'Paket' }, { key: 'progress', label: 'Progres sesi' }, { key: 'status', label: 'Status' }, { key: 'next_session', label: 'Sesi berikutnya' }],
 };
 
-export function StudentsPage({ schoolId, api, onSchedule }: { schoolId: string; api?: Api; onSchedule?: (student: Row, enrollmentId: string) => void }) {
+export function StudentsPage({ schoolId, api, onSchedule, onOpenPackages, onProgress }: { schoolId: string; api?: Api; onSchedule?: (student: Row, enrollmentId: string) => void; onOpenPackages?: () => void; onProgress?: (patch: { students?: boolean; packages?: boolean }) => void }) {
   const [db, setDb] = useState(() => api ? { students: [], sessions: [] } : createDemoStore(localStorage).load(schoolId, seed));
   const [items, setItems] = useState<Row[]>([]);
   const [total, setTotal] = useState(0);
@@ -65,6 +65,7 @@ export function StudentsPage({ schoolId, api, onSchedule }: { schoolId: string; 
         if (!active) return;
         if (page > Math.max(1, Math.ceil(rows.length / 10))) { setPage(1); return; }
         setItems(rows.reverse().slice((page - 1) * 10, page * 10)); setTotal(rows.length);
+        onProgress?.({ students: rows.length > 0 });
       }).catch(e => { if (active) setError(e instanceof Error ? e.message : String(e)); }).finally(() => { if (active) setBusy(false); });
       return () => { active = false; };
     }
@@ -75,6 +76,7 @@ export function StudentsPage({ schoolId, api, onSchedule }: { schoolId: string; 
       if (!Array.isArray(result?.items) || !Number.isInteger(result.total) || result.total < 0) throw Error('Respons murid tidak valid.');
       if (page > Math.max(1, Math.ceil(result.total / 10))) { setPage(1); return; }
       setItems(result.items); setTotal(result.total);
+      onProgress?.({ students: result.total > 0 });
     }).catch(e => { if (active) { if (page > 1 && e.status === 416) setPage(1); else setError(e instanceof Error ? e.message : String(e)); } })
       .finally(() => { if (active) setBusy(false); });
     return () => { active = false; };
@@ -85,7 +87,7 @@ export function StudentsPage({ schoolId, api, onSchedule }: { schoolId: string; 
     setDetailBusy(true); setDetailError(''); setEnrollments([]); setPackages([]);
     Promise.all([loadPages(api, `/schools/${schoolId}/student_enrollments`, { student_id: detail.id }), api(`/schools/${schoolId}/packages`)]).then(([enrollments, packages]) => {
       if (!Array.isArray(packages)) throw Error('Respons paket tidak valid.');
-      if (active) { setEnrollments(enrollments); setPackages(packages); }
+      if (active) { setEnrollments(enrollments); setPackages(packages); onProgress?.({ packages: packages.some(p => p.active) }); }
     }).catch(e => { if (active) setDetailError(e instanceof Error ? e.message : String(e)); }).finally(() => { if (active) setDetailBusy(false); });
     return () => { active = false; };
   }, [api, detail?.id, schoolId, revision]);
@@ -111,7 +113,7 @@ export function StudentsPage({ schoolId, api, onSchedule }: { schoolId: string; 
   const state = api ? { query: search, setQuery: setSearch, sort: newest ? 'created_at' : 'name', direction, toggleSort: () => { if (newest) { setNewest(false); setDirection('asc'); } else setDirection(d => d === 'asc' ? 'desc' : 'asc'); setPage(1); }, page, setPage, result: { items, total, page, pageCount: Math.max(1, Math.ceil(total / 10)) } } : { ...demoState, setQuery: (value: React.SetStateAction<string>) => { demoState.setQuery(value); demoState.setPage(1); } };
   return <>
     <ResourceView variant={api ? 'live' : 'demo'} config={{ ...config, columns }} state={state} busy={busy} loadError={error} onRetry={reload}
-      heading={<PageHeading label="Murid" description={api ? 'Daftar murid dan pembelian paket.' : 'Daftar peserta dan progres latihan simulasi.'} actions={<Button variant="primary" data-action="add-student" icon="plus" onClick={openAdd}>Tambah murid</Button>} />}
+      heading={<PageHeading label="Murid" actions={<Button variant="primary" data-action="add-student" icon="plus" onClick={openAdd}>Tambah murid</Button>} />}
       banner={!api ? <DemoNotice /> : undefined} onAdd={openAdd} onEdit={() => {}} onDelete={() => {}} canDelete={false}
       renderCell={(row, key) => {
         if (key === 'phone') return row.phone || 'Belum diisi';
@@ -126,7 +128,7 @@ export function StudentsPage({ schoolId, api, onSchedule }: { schoolId: string; 
       renderActions={row => <><button type="button" className="table-icon-action" data-student={api ? undefined : row.id} aria-label={`Lihat detail ${row.name}`} title="Lihat detail" onClick={() => { if (api) { setDetailBusy(true); setHistoryBusy(true); setDetailError(''); setHistoryError(''); setDetail(row); } else setDetail(row); }}><Icon name="info" extra="sm" /></button>{api && <button type="button" className="table-icon-action" aria-label={`Ubah data ${row.name}`} title="Ubah data" onClick={() => setEditing(row)}><Icon name="edit" extra="sm" /></button>}</>} />
     {!api && editing !== undefined && <FormModal title="Tambah murid" desc="Input peserta untuk simulasi penjadwalan." formName="add-student" fields={[
       { key: 'name', label: 'Nama murid', required: true, maxLength: 70 }, { key: 'phone', label: 'WhatsApp (opsional)' },
-      { key: 'package', label: 'Paket contoh', type: 'select', options: ['Pemanasan ? Matic', 'Pemanasan ? Manual', 'Makin Lancar ? Matic', 'Makin Lancar ? Manual', 'Siap Jalan ? Matic', 'Siap Jalan ? Manual'] },
+      { key: 'package', label: 'Paket contoh', type: 'select', search: true, options: ['Pemanasan ? Matic', 'Pemanasan ? Manual', 'Makin Lancar ? Matic', 'Makin Lancar ? Manual', 'Siap Jalan ? Matic', 'Siap Jalan ? Manual'] },
       { key: 'total', label: 'Jumlah sesi paket (contoh)', type: 'number', required: true, min: 1, max: 100, step: 1 }
     ]} row={{ total: 4 }} submitLabel="Tambah murid" onClose={() => setEditing(undefined)} onSubmit={async (form, _image, setError) => {
       const values = form as typeof form & { phone: string; package: string; total: string };
@@ -145,6 +147,7 @@ export function StudentsPage({ schoolId, api, onSchedule }: { schoolId: string; 
         const body = { name: form.name, phone: (form as any).phone || null };
         const id = await api(`/schools/${schoolId}/students${editing ? `/${editing.id}` : ''}`, editing ? 'PATCH' : 'POST', body);
         if (!editing) setCreatedStudent({ ...body, id: typeof id === 'string' && id ? id : null });
+        if (!editing) onProgress?.({ students: true });
         setEditing(undefined); setDetail(null); reload();
       }
       catch (e) { setError(e instanceof Error ? e.message : String(e)); } finally { setSaving(false); }
@@ -194,8 +197,8 @@ export function StudentsPage({ schoolId, api, onSchedule }: { schoolId: string; 
             } catch (e) { setPurchaseError(e instanceof Error ? e.message : String(e)); } finally { purchaseLock.current = false; setSaving(false); }
           }}>
             <h4 id="student-purchase-title">Tambah paket</h4>
-            <div className="form-field"><label htmlFor="student-package">Paket</label><select id="student-package" disabled={saving || !packages.some(p => p.active)} value={packageId} onChange={event => { setPackageId(event.target.value); setPurchaseError(''); }} required aria-describedby="student-package-hint"><option value="">Pilih paket aktif</option>{packages.filter(p => p.active).map(p => <option value={p.id} key={p.id}>{p.name}</option>)}</select><span className="hint" id="student-package-hint">Menambahkan paket mencatat hak sesi, bukan penerimaan pembayaran.</span></div>
-            {!packages.some(p => p.active) && <div className="instructor-empty"><strong>Belum ada paket aktif</strong><p>Siapkan paket aktif melalui menu Paket terlebih dahulu.</p></div>}
+            <div className="form-field"><label htmlFor="student-package">Paket</label><SearchSelect id="student-package" aria-label="Paket untuk murid" disabled={saving || !packages.some(p => p.active)} value={packageId} onChange={event => { setPackageId(event.target.value); setPurchaseError(''); }} required placeholder="Pilih paket aktif" aria-describedby="student-package-hint" options={[{ value: '', label: 'Pilih paket aktif' }, ...packages.filter(p => p.active).map(p => ({ value: p.id, label: p.name }))]} /><span className="hint" id="student-package-hint">Menambahkan paket mencatat hak sesi, bukan penerimaan pembayaran.</span></div>
+            {!packages.some(p => p.active) && <div className="instructor-empty"><strong>Belum ada paket aktif</strong><p>Siapkan paket aktif melalui menu Paket terlebih dahulu.</p>{onOpenPackages && <div className="student-detail-actions"><Button sm onClick={() => { setDetail(null); onOpenPackages(); }}>Buka menu Paket</Button></div>}</div>}
             {chosenPackage && <div className="student-package-preview"><strong>{chosenPackage.name}</strong><p>{chosenPackage.total_sessions} pertemuan · {chosenPackage.transmission} · {chosenPackage.session_duration_minutes} menit</p><strong>{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(chosenPackage.normal_price)}</strong></div>}
             {purchaseError && <div ref={purchaseFeedback} className="notice form-feedback" role="alert" tabIndex={-1}>{purchaseError}</div>}
             <Button variant="primary" type="submit" disabled={saving || !chosenPackage}>{saving ? 'Menyimpan...' : 'Tambahkan paket'}</Button>

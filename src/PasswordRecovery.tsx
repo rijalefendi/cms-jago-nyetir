@@ -30,7 +30,7 @@ export function PasswordRecovery({ reset, validSession, restoreError, onNavigate
     if (unavailable) return;
     pending.current = true; setBusy(true);
     try {
-      const result = reset ? await supabase!.auth.updateUser({ password: values.password }) : await supabase!.auth.resetPasswordForEmail(values.email.trim(), { redirectTo: `${location.origin}/lupa-password?reset=1` });
+      const result = reset ? await supabase!.auth.updateUser({ password: values.password }) : await supabase!.auth.resetPasswordForEmail(values.email.trim(), { redirectTo: `${location.origin}/forgot-password?reset=1` });
       if (result.error) throw result.error;
       if (reset) setSaved(true); else setSent(true);
     } catch (e) {
@@ -46,7 +46,7 @@ export function PasswordRecovery({ reset, validSession, restoreError, onNavigate
       catch { setError(saved ? 'Kata sandi sudah tersimpan, tetapi gagal keluar. Coba lagi.' : 'Gagal keluar dari sesi pemulihan. Coba lagi.'); return; }
       finally { pending.current = false; setBusy(false); }
     }
-    onNavigate('/masuk');
+    onNavigate('/login');
   }
   return <LoginLayout><section className="panel panel-pad auth-panel">
     <div className="auth-intro"><h1>{saved ? 'Kata sandi diperbarui' : reset ? 'Atur kata sandi baru' : sent ? 'Periksa email Anda' : 'Lupa kata sandi?'}</h1>
@@ -63,7 +63,7 @@ export function PasswordRecovery({ reset, validSession, restoreError, onNavigate
       {error && <p role="alert" className="notice auth-error">{error}</p>}
       <Button variant="primary" type="submit" disabled={busy}>{busy ? 'Memproses…' : reset ? 'Simpan kata sandi' : 'Kirim tautan pemulihan'}</Button>
     </form>}
-    {(unavailable || (reset && !saved && error)) && <Button onClick={() => onNavigate('/lupa-kata-sandi')}>Minta tautan baru</Button>}
+    {(unavailable || (reset && !saved && error)) && <Button onClick={() => onNavigate('/forgot-password')}>Minta tautan baru</Button>}
     {(sent || saved || unavailable) && error && <p className="notice auth-error" role="alert">{error}</p>}
     {(sent || saved) && <p role="status" className="sr-only">{saved ? 'Kata sandi berhasil diperbarui.' : 'Permintaan tautan pemulihan berhasil diproses.'}</p>}
     <p className="auth-switch"><button type="button" className="inline-link" disabled={busy} onClick={backToLogin}>Kembali ke Masuk</button></p>

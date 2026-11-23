@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { formatRupiahInput, parseRupiahInput } from './packagePricing.mjs';
 import { DatePicker } from './DatePicker';
 import { TimePicker } from './TimePicker';
@@ -15,6 +15,7 @@ export type FieldDef = {
   step?: number;
   hint?: string;
   upload?: boolean;
+  search?: boolean;
   enabledBy?: string;
   disabled?: boolean;
 };
@@ -41,8 +42,8 @@ export function Button({ variant = 'quiet', sm, icon, type = 'button', children,
 
 const badgeTones: Record<string, string> = {
   'Baru': 'warning', 'Menunggu keputusan': 'warning', 'Menunggu konfirmasi': 'warning',
-  'Diterima': 'success', 'Dihubungi': 'info', 'Aktif': 'info', 'Dikonversi': 'success', 'Terkonfirmasi': 'success',
-  'Selesai': 'success', 'Tidak lanjut': 'neutral', 'Batal': 'danger', 'Dibatalkan': 'danger', 'Tidak hadir': 'danger',
+  'Diterima': 'success', 'Dihubungi': 'info', 'Aktif': 'info', 'Dikonversi': 'success', 'Terkonfirmasi': 'info',
+  'Selesai': 'success', 'Tidak lanjut': 'neutral', 'Batal': 'danger', 'Dibatalkan': 'neutral', 'Tidak hadir': 'danger',
 };
 export const Badge = ({ status }: { status: string }) => (
   <span className={`badge ${badgeTones[status] || 'neutral'}`}>{status}</span>
@@ -57,6 +58,15 @@ export function Field({ f, row, error }: { f: FieldDef; row?: Row | null; error?
   const validation = { 'aria-invalid': Boolean(error), 'aria-describedby': [f.hint ? `${id}-hint` : '', error ? `${id}-error` : ''].filter(Boolean).join(' ') || undefined };
   const feedback = <>{f.hint && <span id={`${id}-hint`} className="hint">{f.hint}</span>}{error && <small id={`${id}-error`} className="field-error" role="alert">{error}</small>}</>;
   if (f.type === 'select') {
+    if (f.search) {
+      return (
+        <div className="form-field">
+          {label}
+          <SearchSelect id={id} name={f.key} defaultValue={initial as string} required={f.required} disabled={f.disabled} options={f.options || []} {...validation} />
+          {feedback}
+        </div>
+      );
+    }
     return (
       <div className="form-field">
         {label}
@@ -137,6 +147,140 @@ export function SearchField({ id, placeholder, ariaLabel, value, onChange }: {
   );
 }
 
+export type SearchSelectOption = { value: string; label: string; disabled?: boolean };
+
+export function SearchSelect({ options, id, placeholder, ...selectProps }: {
+  options: (string | SearchSelectOption)[];
+  placeholder?: string;
+} & Omit<React.SelectHTMLAttributes<HTMLSelectElement>, 'children'>) {
+  const select = useRef<HTMLSelectElement>(null);
+  const root = useRef<HTMLDivElement>(null);
+  const input = useRef<HTMLInputElement>(null);
+  const listId = useId();
+  const optionId = (index: number) => `${listId}-option-${index}`;
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const [text, setText] = useState('');
+  const typing = useRef(false);
+  const normalized = options.map(option => typeof option === 'string' ? { value: option, label: option } : option);
+  const labelFor = (value: string) => normalized.find(option => option.value === value)?.label ?? '';
+  const keyword = text.trim().toLocaleLowerCase('id-ID');
+  const filtered = normalized.filter(option => option.value !== '' && (!keyword
+    || option.label.toLocaleLowerCase('id-ID').includes(keyword)
+    || option.value.toLocaleLowerCase('id-ID') === keyword));
+  const current = select.current ? select.current.value : '';
+  const currentLabel = select.current ? labelFor(current) : '';
+
+  useEffect(() => {
+    if (open || typing.current) return;
+    setText(labelFor(select.current?.value ?? ''));
+  });
+  useEffect(() => {
+    if (selectProps.disabled && open) closeList();
+  });
+  useEffect(() => {
+    if (!open) return;
+    const outside = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node)) closeList();
+    };
+    document.addEventListener('pointerdown', outside);
+    return () => document.removeEventListener('pointerdown', outside);
+  }, [open]);
+  useEffect(() => {
+    if (open) setActive(0);
+  }, [open, text]);
+
+  function closeList() {
+    setOpen(false);
+    typing.current = false;
+    setText(labelFor(select.current?.value ?? ''));
+  }
+  function openList() {
+    const el = select.current;
+    if (!el || el.disabled) return;
+    typing.current = false;
+    setText('');
+    setOpen(true);
+  }
+  function choose(index: number) {
+    const option = filtered[index];
+    const el = select.current;
+    if (!option || !el || option.disabled) return;
+    if (el.value !== option.value) {
+      // Use the native setter so React's delegated change handler also sees the selection.
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(el, option.value);
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    typing.current = false;
+    setText(option.label);
+    setOpen(false);
+    input.current?.focus();
+  }
+  function move(delta: number) {
+    const length = filtered.length;
+    if (!length) return;
+    let index = active;
+    for (let step = 0; step < length; step++) {
+      index = (index + delta + length) % length;
+      if (!filtered[index]?.disabled) { setActive(index); return; }
+    }
+  }
+
+  return (
+    <div className={`search-select${open ? ' open' : ''}${current ? '' : ' search-select-empty-value'}`} ref={root}
+      onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) closeList(); }}>
+      <select {...selectProps} ref={select} className="search-select-native" tabIndex={-1} aria-hidden="true">
+        {normalized.map(option => <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>)}
+      </select>
+      <div className="search-select-control">
+        <input ref={input} type="text" role="combobox" className="search-select-input" autoComplete="off" aria-autocomplete="list" aria-haspopup="listbox"
+          id={id} name={undefined}
+          aria-expanded={open} aria-controls={open ? listId : undefined}
+          aria-activedescendant={open && filtered[active] ? optionId(active) : undefined}
+          aria-label={selectProps['aria-label']} aria-invalid={selectProps['aria-invalid'] as boolean | undefined}
+          aria-describedby={selectProps['aria-describedby'] as string | undefined}
+          placeholder={open ? 'Ketik untuk mencari…' : (currentLabel || placeholder || 'Ketik untuk mencari…')}
+          value={open ? text : currentLabel}
+          disabled={selectProps.disabled}
+          onChange={event => { typing.current = true; setText(event.target.value); if (!open) setOpen(true); }}
+          onClick={openList}
+          onKeyDown={event => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              if (open) choose(active);
+            } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+              event.preventDefault();
+              if (!open) openList(); else move(event.key === 'ArrowDown' ? 1 : -1);
+            } else if (event.key === 'Escape' && open) {
+              event.preventDefault(); event.stopPropagation(); closeList();
+            } else if (event.key === 'Tab' && open) {
+              closeList();
+            }
+          }} />
+        {open && text !== '' && !selectProps.disabled && <button type="button" className="search-clear" aria-label="Hapus pencarian"
+          onClick={() => { setText(''); input.current?.focus(); }}><Icon name="x" extra="sm" /></button>}
+        <button type="button" className="search-select-toggle" tabIndex={-1} disabled={selectProps.disabled}
+          aria-label={`Tampilkan pilihan ${selectProps['aria-label'] || ''}`} aria-expanded={open} aria-controls={open ? listId : undefined}
+          onClick={() => { if (open) closeList(); else { input.current?.focus(); openList(); } }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+        </button>
+      </div>
+      {open && !selectProps.disabled && <div className="search-select-list" role="listbox" id={listId} aria-label={selectProps['aria-label'] ? `Pilihan ${selectProps['aria-label']}` : 'Pilihan'}>
+        {filtered.map((option, index) => (
+          <button key={option.value} type="button" role="option" id={optionId(index)} data-value={option.value}
+            aria-selected={option.value === current} aria-disabled={option.disabled || undefined}
+            className={index === active ? 'active' : ''}
+            onClick={() => choose(index)}
+            onMouseEnter={() => setActive(index)}>
+            {option.label}
+          </button>
+        ))}
+        {!filtered.length && <p className="search-select-empty">Tidak ada pilihan yang cocok.</p>}
+      </div>}
+    </div>
+  );
+}
+
 export const Panel = ({ className = '', children }: { className?: string; children: React.ReactNode }) => (
   <section className={`panel ${className}`.trim()}>{children}</section>
 );
@@ -159,12 +303,11 @@ export const Metric = ({ label, value, foot, icon, tone = '' }: { label: string;
   </div>
 );
 
-export const PageHeading = ({ label, description, actions, eyebrow = 'OPERASIONAL' }: { label: string; description: string; actions?: React.ReactNode; eyebrow?: string }) => (
+export const PageHeading = ({ label, description, actions }: { label: string; description?: string; actions?: React.ReactNode }) => (
   <div className="page-heading">
     <div>
-      <div className="eyebrow">{eyebrow}</div>
       <h1>{label}</h1>
-      <p className="page-sub">{description}</p>
+      {description && <p className="page-sub">{description}</p>}
     </div>
     {actions && <div className="heading-actions">{actions}</div>}
   </div>
@@ -184,16 +327,16 @@ export function Modal({ title, desc, onClose, children, role = 'dialog' }: { tit
   useEffect(() => {
     const invoker = document.activeElement as HTMLElement | null;
     document.body.style.overflow = 'hidden';
-    const first = ref.current?.querySelector<HTMLElement>('input:not(:disabled), select:not(:disabled), textarea:not(:disabled)')
+    const first = ref.current?.querySelector<HTMLElement>('input:not([type="hidden"]):not([aria-hidden="true"]):not(:disabled), select:not([aria-hidden="true"]):not(:disabled), textarea:not(:disabled)')
       || ref.current?.querySelector<HTMLElement>('button:not(:disabled)');
     first?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (ref.current?.querySelector('.date-picker [aria-expanded="true"]')) return;
+        if (ref.current?.querySelector('.date-picker [aria-expanded="true"], .search-select [aria-expanded="true"]')) return;
         e.stopPropagation(); onClose(); return;
       }
       if (e.key !== 'Tab') return;
-      const items = ref.current ? [...ref.current.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href]')] : [];
+      const items = ref.current ? [...ref.current.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled):not([type="hidden"]):not([tabindex="-1"]):not([aria-hidden="true"]), select:not(:disabled):not([tabindex="-1"]):not([aria-hidden="true"]), textarea:not(:disabled), a[href]')] : [];
       if (!items.length) return;
       const firstEl = items[0], lastEl = items[items.length - 1];
       if (e.shiftKey && document.activeElement === firstEl) { e.preventDefault(); lastEl.focus(); }
@@ -424,7 +567,7 @@ export function showToast(message: string) {
 }
 
 export const HomeHeading = ({ busy = false, onReload, onSchedule }: { busy?: boolean; onReload?: () => void; onSchedule?: () => void }) => (
-  <PageHeading label="Beranda" description="Ringkasan operasional sekolah · WITA" actions={<><Button onClick={onReload} disabled={busy || !onReload}>Muat ulang</Button><Button onClick={onSchedule} disabled={!onSchedule}>Buka jadwal</Button></>} />
+  <PageHeading label="Beranda" actions={<><Button onClick={onReload} disabled={busy || !onReload}>Muat ulang</Button><Button onClick={onSchedule} disabled={!onSchedule}>Buka jadwal</Button></>} />
 );
 
 export const HomeMetricsSkeleton = () => (

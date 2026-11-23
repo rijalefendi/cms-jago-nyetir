@@ -17,22 +17,22 @@ for (const [page, icon] of [['students', 'student'], ['instructors', 'teacher'],
 }
 emptyLists.close();
 
-const routing = fixture({ initial: session(), url: 'http://localhost/dasbor/instruktur' });
+const routing = fixture({ initial: session(), url: 'http://localhost/dashboard/instructors' });
 await waitFor(() => routing.document.querySelector('.live-nav [data-live-page="instructors"][aria-current="page"]'));
 routing.document.querySelector('.live-nav [data-live-page="vehicles"]').click();
 await waitFor(() => routing.document.querySelector('.live-nav [data-live-page="vehicles"][aria-current="page"]'));
-assert.equal(routing.dom.window.location.pathname, '/dasbor/mobil');
+assert.equal(routing.dom.window.location.pathname, '/dashboard/vehicles');
 routing.dom.window.history.back();
 await waitFor(() => routing.document.querySelector('.live-nav [data-live-page="instructors"][aria-current="page"]'));
-assert.equal(routing.dom.window.location.pathname, '/dasbor/instruktur');
+assert.equal(routing.dom.window.location.pathname, '/dashboard/instructors');
 routing.document.querySelector('#sidebar [data-live-page="settings"]').click();
 await waitFor(() => routing.document.querySelector('#sidebar [data-live-page="settings"][aria-current="page"]'));
-assert.equal(routing.dom.window.location.pathname, '/dasbor/pengaturan');
+assert.equal(routing.dom.window.location.pathname, '/dashboard/settings');
 routing.close();
 
 const initialRoute = fixture({ initial: session() });
 await waitFor(() => initialRoute.document.querySelector('.live-nav [data-live-page="home"][aria-current="page"]'));
-await waitFor(() => initialRoute.dom.window.location.pathname === '/dasbor/beranda');
+await waitFor(() => initialRoute.dom.window.location.pathname === '/dashboard/home');
 initialRoute.close();
 
 const { dom } = fixture({ initial: session() });
@@ -129,7 +129,9 @@ rejectSave = false;
 addForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
 await new Promise(resolve => setTimeout(resolve, 30));
 assert.ok(calls.some(([url, method]) => url.endsWith('/instructors') && method === 'POST'));
-await waitFor(() => !document.querySelector('[role="dialog"]'));
+// Wait for the dialog and its deferred focus-restore cleanup to finish before interacting again.
+for (let i = 0; i < 5; i++) { await new Promise(r => setTimeout(r, 40)); if (!document.querySelector('[role="dialog"], [role="alertdialog"]') && document.body.style.overflow !== 'hidden') break; }
+await waitFor(() => !document.querySelector('[role="dialog"]') && document.body.style.overflow !== 'hidden');
 for (let i = 0; i < 10; i++) instructors.push({ id: `extra-${i}`, name: `Extra ${i}`, transmission: 'Matic', notes: '', active: true });
 const searchAgain = document.getElementById('liveInstructorSearch');
 const clearSearch = document.querySelector('[data-clear-search="liveInstructorSearch"]');
@@ -145,8 +147,7 @@ await waitFor(() => document.querySelectorAll('.instructor-table tbody tr').leng
 assert.equal(document.querySelectorAll('.instructor-table tbody tr').length, 2);
 assert.ok(calls.some(([url]) => url.includes('/instructors?page=2')));
 document.querySelector('.instructor-table .table-sort').click();
-await new Promise(resolve => setTimeout(resolve, 30));
-assert.ok(calls.some(([url]) => { const params = new URL(url, 'http://localhost').searchParams; return params.get('sort') === 'name' && params.get('direction') === 'desc' && params.get('page') === '1'; }));
+await waitFor(() => calls.some(([url]) => { const params = new URL(url, 'http://localhost').searchParams; return params.get('sort') === 'name' && params.get('direction') === 'asc' && params.get('page') === '1'; }));
 pauseNextList = true;
 document.querySelector('.instructor-table .table-sort').click();
 await new Promise(resolve => setTimeout(resolve, 20));

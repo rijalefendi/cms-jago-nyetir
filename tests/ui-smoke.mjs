@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 
 const dom = new JSDOM('<!doctype html><html><head></head><body><div id="root"></div></body></html>', {
-  url: 'http://localhost/schools/radja/dasbor/dasbor',
+  url: 'http://localhost/schools/radja/dashboard/home',
   runScripts: 'dangerously',
   pretendToBeVisual: true,
 });
@@ -55,7 +55,7 @@ assert.equal(document.querySelector('[data-react-page]').dataset.reactPage, 'Ove
 document.querySelector('[data-page="jadwal"]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
 await tick();
 assert.equal(document.querySelector('[data-react-page]').dataset.reactPage, 'SchedulePage');
-assert.match(dom.window.location.pathname, /\/jadwal$/);
+assert.match(dom.window.location.pathname, /\/sessions$/);
 const picker = document.getElementById('schoolPicker');
 const sidebarToggle = document.querySelector('.sidebar-toggle');
 assert.ok(document.getElementById('sidebar').contains(sidebarToggle));
@@ -75,15 +75,15 @@ assert.equal(picker.labels[0].querySelector('span').textContent, 'Sekolah demo')
 assert.equal(document.querySelector('.topbar .school-picker'), null);
 picker.value = 'demo-b';
 picker.dispatchEvent(new Event('change', { bubbles: true }));
-await tick();
+for (let i = 0; i < 75 && document.querySelector('.sidebar-school-name').textContent !== 'Sekolah Mengemudi Contoh'; i++) await tick();
 assert.equal(document.querySelector('.sidebar-school-name').textContent, 'Sekolah Mengemudi Contoh');
 assert.equal(document.getElementById('schoolLocation'), null);
 assert.equal(document.getElementById('headerClock'), null);
-assert.equal(dom.window.location.pathname, '/dasbor/jadwal');
+assert.equal(dom.window.location.pathname, '/dashboard/sessions');
 assert.equal(document.querySelector('[data-page="permintaan"]'), null);
 picker.value = 'radja';
 picker.dispatchEvent(new Event('change', { bubbles: true }));
-await tick();
+for (let i = 0; i < 75 && document.querySelector('.sidebar-school-name').textContent !== 'radjamengemudi'; i++) await tick();
 for (const [page, searchId] of [['murid', 'studentSearch'], ['instruktur', 'instructorSearch'], ['mobil', 'carSearch'], ['paket', 'packageSearch']]) {
   document.querySelector(`[data-page="${page}"]`).click();
   await tick();
@@ -374,11 +374,11 @@ await tick();
 assert.match(document.querySelector('.instructor-table').textContent, /Latihan khusus/);
 picker.value = 'demo-b';
 picker.dispatchEvent(new Event('change', { bubbles: true }));
-await tick();
+for (let i = 0; i < 75 && document.getElementById('main').textContent.includes('Latihan khusus'); i++) await tick();
 assert.doesNotMatch(document.getElementById('main').textContent, /Latihan khusus/);
 picker.value = 'radja';
 picker.dispatchEvent(new Event('change', { bubbles: true }));
-await tick();
+for (let i = 0; i < 75 && !document.querySelector(`[data-action="edit-package"][data-id="${packageCreated.id}"]`); i++) await tick();
 document.querySelector(`[data-action="edit-package"][data-id="${packageCreated.id}"]`).click();
 await tick();
 packageForm = document.querySelector('[data-form="save-package"]');

@@ -33,6 +33,7 @@ export function DashboardShell({
   school,
   demo,
   page,
+  userEmail,
   onNavigate,
   locked = false,
   loggingOut,
@@ -42,12 +43,19 @@ export function DashboardShell({
   school: School | null;
   demo?: { id: string; schools: readonly { id: string; name: string }[]; onChange: (id: string) => void };
   page: string;
+  userEmail?: string;
   onNavigate: (page: string) => void;
   locked?: boolean;
   loggingOut: boolean;
   onLogout?: () => void;
   children: React.ReactNode;
 }) {
+  const roleLabel = demo ? undefined : school?.role === "owner" ? "Owner" : school?.role === "staff" ? "Staff" : undefined;
+  const accountInitial = userEmail?.slice(0, 1).toUpperCase();
+  const account = userEmail ? <>
+    {accountInitial && <span className="avatar" aria-hidden="true">{accountInitial}</span>}
+    <span className="profile-name">{userEmail}{roleLabel && <small>{roleLabel}</small>}</span>
+  </> : null;
   const [open, setOpen] = useState(false);
   const localSidebarState = useState(false);
   const [collapsed, setCollapsed] = useContext(SidebarState) ?? localSidebarState;
@@ -151,13 +159,20 @@ export function DashboardShell({
                 </div>
               ))}
             </div>
-            <div className="nav-group">
+            {(demo || !school || school.role === "owner") && <div className="nav-group">
               <div className="nav-title">LAINNYA</div>
               {demo && link("reports", "Laporan", "chart")}
               {!demo && school?.role === "owner" && school.setup_complete && link("invitations", "Staff", "users")}
-              {(demo || !school || school.role === "owner") && link("settings", "Pengaturan", "settings")}
-            </div>
+              {link("settings", "Pengaturan", "settings")}
+            </div>}
           </nav>
+          {userEmail && <div className="sidebar-account">
+            {accountInitial && <span className="avatar neutral" aria-hidden="true">{accountInitial}</span>}
+            <span className="sidebar-account-info">
+              <span className="sidebar-account-email">{userEmail}</span>
+              {roleLabel && <small>{roleLabel}</small>}
+            </span>
+          </div>}
         </aside>
         <div className="app-body">
           <header className="topbar">
@@ -175,6 +190,7 @@ export function DashboardShell({
               </button>
             </div>
             <div className="topbar-right">
+              {account && <div className="topbar-account">{account}</div>}
               {(!demo || onLogout) && <button
                 type="button"
                 className="btn btn-danger"

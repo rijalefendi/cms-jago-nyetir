@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { fixture, response, school, session, tick, waitFor } from './auth-fixture.mjs';
 
 let removed = false;
-const f = fixture({ initial: session(), url: 'http://localhost/dasbor/staff', fetch: async (url, options) => {
+const f = fixture({ initial: session(), url: 'http://localhost/dashboard/staff', fetch: async (url, options) => {
   if (url === '/api/v1/schools') return response([school]);
   if (options.method === 'DELETE') {
     assert.equal(url, '/api/v1/schools/school/members/user-staff');
