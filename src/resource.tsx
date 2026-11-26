@@ -138,7 +138,7 @@ export const packageConfig: ResourceConfig = {
       key: "description",
       label: "Deskripsi (opsional)",
       type: "textarea",
-      hint: "Teks bebas. Gunakan Enter untuk baris baru, â€¢ atau - untuk bullet, dan 1. 2. untuk daftar bernomor. Bukan HTML.",
+      hint: "Teks bebas. Gunakan Enter untuk baris baru, • atau - untuk bullet, dan 1. 2. untuk daftar bernomor. Bukan HTML.",
     },
   ],
   collection: "packages",
@@ -461,7 +461,7 @@ export function ResourceView({
             {["active", "scheduled", "expired"].includes(pricing.status) && (
               <>
                 <br />
-                {row.start_discount} â€“ {row.end_discount} (WITA)
+                {row.start_discount} – {row.end_discount} (WITA)
               </>
             )}
           </small>
@@ -506,9 +506,9 @@ export function ResourceView({
     ) : key === "transmission" ? (
       r.transmission
     ) : key === "notes" ? (
-      <span className="instructor-note">{r.notes || "â€”"}</span>
+      <span className="instructor-note">{r.notes || "-"}</span>
     ) : key === "description" ? (
-      <span className="package-description">{r.description || "â€”"}</span>
+      <span className="package-description">{r.description || "-"}</span>
     ) : key === "total_sessions" ? (
       `${r.total_sessions} sesi`
     ) : key === "session_duration_minutes" ? (
@@ -670,8 +670,8 @@ export function ResourceView({
           hidden={variant === "live" && (Boolean(busy) || Boolean(loadError))}
         >
           <span>
-            Menampilkan {result.total ? (result.page - 1) * 10 + 1 : 0}â€“
-            {Math.min(result.page * 10, result.total)} dari {result.total}{" "}
+            Menampilkan {result.total ? (result.page - 1) * 10 + 1 : 0}
+            {Math.min(result.page * 10, result.total) > (result.total ? (result.page - 1) * 10 + 1 : 0) && `–${Math.min(result.page * 10, result.total)}`} dari {result.total}{" "}
             {config.plural}
           </span>
           <div className="instructor-pages">
@@ -947,7 +947,7 @@ export function ServerCrudPage({
   const [page, setPage] = useState(1);
   const [items, setItems] = useState<Row[]>([]);
   const [total, setTotal] = useState(0);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [actionError, setActionError] = useState("");
@@ -1061,7 +1061,7 @@ export function ServerCrudPage({
         variant="live"
         config={config}
         heading={heading}
-        banner={notice}
+        banner={!busy && !loadError ? notice : undefined}
         state={state as any}
         busy={busy}
         loadError={loadError}

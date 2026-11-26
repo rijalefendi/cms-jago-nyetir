@@ -256,7 +256,6 @@ export function Invitations({ api, schoolId }: { api: Api; schoolId: string }) {
                 ? "Coba kata pencarian lain."
                 : "Tambahkan staff untuk membantu mengelola sekolah."
             }
-            action={!query.trim() && createButton}
           />
         ) : (
           data && (
@@ -313,8 +312,8 @@ export function Invitations({ api, schoolId }: { api: Api; schoolId: string }) {
         {data && !loading && (
           <div className="instructor-footer">
             <span>
-              Menampilkan {total ? (page - 1) * 10 + 1 : 0}–
-              {Math.min(page * 10, total)} dari {total} staff
+              Menampilkan {total ? (page - 1) * 10 + 1 : 0}
+              {Math.min(page * 10, total) > (total ? (page - 1) * 10 + 1 : 0) && `–${Math.min(page * 10, total)}`} dari {total} staff
             </span>
             <div className="instructor-pages">
               <button

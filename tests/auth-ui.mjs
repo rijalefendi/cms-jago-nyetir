@@ -187,6 +187,21 @@ assert.equal(signup.options.emailRedirectTo, 'http://localhost/auth/callback');
 assert.equal(f.calls.length, 0);
 f.close();
 
+// A rate-limited response starts a visible cooldown; switching modes clears it.
+f = fixture({ url: 'http://localhost/login' });
+await waitFor(() => f.document.querySelector('form'));
+f.auth.signInWithPassword = async () => ({ data: { session: null }, error: { name: 'AuthApiError', code: 'over_request_rate_limit', status: 429, message: 'Too many requests' } });
+submit(f, { email: 'owner@example.com', password: 'long-password' });
+await waitFor(() => f.document.querySelector('.auth-cooldown'));
+assert.match(f.document.querySelector('.notice.auth-error').textContent, /Terlalu banyak percobaan/);
+assert.match(f.document.querySelector('.auth-cooldown').textContent, /Coba lagi dalam \d+ detik/);
+assert.equal(f.document.querySelector('button[type="submit"]').disabled, true, 'cooldown disables submit');
+f.document.querySelector('[data-auth-mode="signup"]').click();
+await waitFor(() => f.document.querySelector('h1')?.textContent === 'Daftar akun');
+assert.equal(f.document.querySelector('.auth-cooldown'), null, 'mode switch clears the cooldown');
+assert.equal(f.document.querySelector('button[type="submit"]').disabled, false, 'cooldown reset re-enables submit');
+f.close();
+
 // Auth routes support direct entry, browser history, and logged-out dashboard links.
 f = fixture({ url: 'http://localhost/register' });
 await waitFor(() => f.document.querySelector('h1')?.textContent === 'Daftar akun');
@@ -585,7 +600,7 @@ f = fixture({ initial: session(), url: 'http://localhost/dashboard/home', fetch:
 await waitFor(() => f.document.querySelector('.home-metrics') && !f.document.querySelector('.home-metrics.loading-skeleton'));
 f.document.querySelector('#sidebar [data-live-page="settings"]').click();
 await waitFor(() => f.document.querySelector('.setup-next-steps'));
-assert.match(f.document.querySelector('.setup-next-steps').textContent, /Semua prasyarat operasional sudah lengkap/);
+assert.match(f.document.querySelector('.setup-next-steps').textContent, /Jadwal sudah tersedia/);
 assert.ok([...f.document.querySelectorAll('.setup-next-steps button')].some(b => b.textContent === 'Buka menu Jadwal'));
 assert.equal([...f.document.querySelectorAll('.setup-next-steps button')].some(b => b.textContent === 'Buka menu Paket'), false, 'condensed settings banner omits the step shortcut buttons');
 assert.equal(f.document.querySelector('.setup-next-steps .step-status'), null, 'condensed settings banner omits step badges');
@@ -597,10 +612,41 @@ f = fixture({ initial: session(), url: 'http://localhost/dashboard/settings', fe
   return response([]);
 } });
 await waitFor(() => f.document.querySelector('.setup-next-steps'));
-assert.match(f.document.querySelector('.setup-next-steps').textContent, /Sekolah siap dioperasikan/);
+assert.match(f.document.querySelector('.setup-next-steps').textContent, /Profil sekolah lengkap/);
+assert.equal(f.document.querySelectorAll('.setup-next-steps li').length, 4);
 assert.ok(f.document.querySelector('.setup-next-steps .step-status'), 'unchecked steps show Belum dicek badges on a fresh session');
 assert.ok([...f.document.querySelectorAll('.setup-next-steps button')].some(b => b.textContent === 'Buka menu Paket'));
 f.close();
+
+// Unknown role never enables updates; setup gate does not fetch operational data.
+for (const cached of [
+  { packages: true, instructors: true, vehicles: true, students: true },
+  { packages: false, instructors: null, vehicles: null, students: true },
+]) {
+  let cachedSchool = school;
+  const cachedGuide = fixture({ initial: session(), url: 'http://localhost/dashboard/settings',
+    storage: { 'atursetir-onboarding:school': cached, 'atursetir-onboarding:other': { hasSessionEvidence: true } },
+    fetch: async (url, options) => options.method === 'PUT' ? response(cachedSchool.id)
+      : url === '/api/v1/schools' ? response([cachedSchool]) : response([{ ...cachedSchool, weekday_closed: false, weekday_open: '08:00:00', weekday_close: '17:00:00', weekend_closed: true }]),
+  });
+  await waitFor(() => cachedGuide.document.querySelector('.setup-next-steps'));
+  const guide = cachedGuide.document.querySelector('.setup-next-steps');
+  assert.doesNotMatch(guide.textContent, /Jadwal sudah tersedia|Semua prasyarat|siap digunakan/);
+  if (cached.packages) {
+    assert.match(guide.textContent, /Data dasar tersedia/);
+    assert.match(guide.textContent, /kuota.*transmisi/);
+  } else {
+    assert.match(guide.textContent, /Belum tersedia/);
+    assert.match(guide.querySelector('li:last-child').textContent, /Data tersedia.*paket aktif/s);
+    assert.equal(guide.querySelectorAll('.btn-primary').length, 1);
+  }
+  await waitFor(() => cachedGuide.document.querySelector('.school-profile input[name="name"]')?.value === school.name);
+  cachedSchool = { ...school, id: 'other' };
+  submit(cachedGuide, {});
+  await waitFor(() => /Jadwal sudah tersedia/.test(cachedGuide.document.querySelector('.setup-next-steps')?.textContent || ''));
+  assert.deepEqual(JSON.parse(cachedGuide.dom.window.sessionStorage.getItem('atursetir-onboarding:school')), cached, 'switching schools preserves the previous school cache');
+  cachedGuide.close();
+}
 
 // Unknown role never enables updates; setup gate does not fetch operational data.
 f = fixture({ initial: session(), fetch: async url => response(url.endsWith('/settings')

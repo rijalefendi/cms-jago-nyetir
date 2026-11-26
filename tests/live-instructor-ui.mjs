@@ -1,15 +1,27 @@
 import assert from 'node:assert/strict';
-import { fixture, session, school, response, waitFor } from './auth-fixture.mjs';
+import { fixture, session, school, response, tick, waitFor } from './auth-fixture.mjs';
 
 const emptyLists = fixture({ initial: session(), fetch: async url => {
+  // Realistic latency keeps the render order deterministic: skeleton first, then data.
+  await new Promise(resolve => setTimeout(resolve, 50));
   if (url === '/api/v1/schools') return response([school]);
   return response(url.includes('/students?') || url.includes('/instructors?') ? { items: [], total: 0, page: 1, pageSize: 10 } : []);
 } });
 await waitFor(() => emptyLists.document.querySelector('#sidebar [data-live-page="students"]:not(:disabled)'));
 for (const [page, icon] of [['students', 'student'], ['instructors', 'teacher'], ['vehicles', 'car'], ['packages', 'package']]) {
   emptyLists.document.querySelector(`#sidebar [data-live-page="${page}"]`)?.click();
-  await waitFor(() => emptyLists.document.querySelector(`.${page === 'students' ? 'student' : page === 'instructors' ? 'instructor' : page === 'vehicles' ? 'car' : 'package'}-panel .empty use`));
-  assert.equal(emptyLists.document.querySelector('.empty use').getAttribute('href'), `#i-${icon}`);
+  // Resource panels share the instructor-panel class, so match the icon itself: the click's
+  // page swap flushes asynchronously and the panel can still re-render as a loading
+  // skeleton, so observe and assert in the same synchronous block.
+  for (let i = 0; i < 75; i++) {
+    const use = emptyLists.document.querySelector('.empty use');
+    if (use?.getAttribute('href') === `#i-${icon}` && !emptyLists.document.querySelector('.loading-skeleton')) {
+      assert.equal(use.getAttribute('href'), `#i-${icon}`);
+      break;
+    }
+    await tick();
+    if (i === 74) assert.fail(`empty state with #i-${icon} did not settle`);
+  }
   const input = emptyLists.document.querySelector('.instructor-toolbar input');
   assert.equal(input.value, '', `search for ${page} must start empty`);
   Object.getOwnPropertyDescriptor(emptyLists.dom.window.HTMLInputElement.prototype, 'value').set.call(input, 'tidak ada');
@@ -92,30 +104,27 @@ await new Promise(resolve => setTimeout(resolve, 20));
 assert.match(document.querySelector('[role="alertdialog"]').textContent, /Hapus instruktur\?/);
 assert.match(document.querySelector('[role="alertdialog"]').textContent, /Bima/);
 document.querySelector('[data-testid="confirm-delete-instructor"]').click();
-await new Promise(resolve => setTimeout(resolve, 30));
-assert.ok(calls.some(([url, method]) => url.endsWith('/instructors/b') && method === 'DELETE'));
+await waitFor(() => calls.some(([url, method]) => url.endsWith('/instructors/b') && method === 'DELETE'));
 rejectDelete = true;
 document.querySelector('.instructor-table [aria-label="Hapus Bima"]').click();
-await new Promise(resolve => setTimeout(resolve, 20));
+await waitFor(() => document.querySelector('[data-testid="confirm-delete-instructor"]'));
 document.querySelector('[data-testid="confirm-delete-instructor"]').click();
-await new Promise(resolve => setTimeout(resolve, 30));
-assert.ok(document.querySelector('.instructor-action-error[role="alert"]'));
+await waitFor(() => document.querySelector('.instructor-action-error[role="alert"]'));
 assert.match(document.querySelector('.instructor-action-error[role="alert"]').textContent, /masih tercatat pada sesi/);
 document.querySelector('[data-action="add-instructor"]').click();
-await new Promise(resolve => setTimeout(resolve, 20));
-assert.ok(!document.querySelector('.instructor-action-error'));
+await waitFor(() => !document.querySelector('.instructor-action-error'));
 const addForm = document.querySelector('form[data-form="save-instructor"]');
 assert.equal(document.activeElement, addForm.querySelector('[name="name"]'));
 const writesBefore = calls.filter(([, method]) => method === 'POST').length;
 addForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-await new Promise(resolve => setTimeout(resolve, 30));
+await waitFor(() => document.getElementById('f-name-error'));
 assert.match(document.getElementById('f-name-error').textContent, /Nama instruktur wajib diisi/);
 assert.equal(calls.filter(([, method]) => method === 'POST').length, writesBefore);
 assert.equal(document.getElementById('modalError'), null);
 rejectSave = true;
 addForm.querySelector('[name="name"]').value = 'Citra';
 addForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-await new Promise(resolve => setTimeout(resolve, 30));
+await waitFor(() => document.getElementById('modalError'));
 assert.match(document.getElementById('modalError').textContent, /Layanan belum dapat dihubungi/);
 assert.ok(document.getElementById('modalError').classList.contains('form-feedback'));
 assert.doesNotMatch(document.getElementById('modalError').textContent, /^Error:/);
@@ -123,12 +132,10 @@ assert.equal(addForm.querySelector('[name="name"]').value, 'Citra');
 assert.equal(addForm.querySelector('[aria-invalid="true"]'), null, 'network errors must not blame a field');
 Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value').set.call(addForm.querySelector('[name="name"]'), 'Citra Baru');
 addForm.querySelector('[name="name"]').dispatchEvent(new Event('input', { bubbles: true }));
-await new Promise(resolve => setTimeout(resolve, 20));
-assert.equal(document.getElementById('modalError'), null);
+await waitFor(() => !document.getElementById('modalError'));
 rejectSave = false;
 addForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-await new Promise(resolve => setTimeout(resolve, 30));
-assert.ok(calls.some(([url, method]) => url.endsWith('/instructors') && method === 'POST'));
+await waitFor(() => calls.some(([url, method]) => url.endsWith('/instructors') && method === 'POST'));
 // Wait for the dialog and its deferred focus-restore cleanup to finish before interacting again.
 for (let i = 0; i < 5; i++) { await new Promise(r => setTimeout(r, 40)); if (!document.querySelector('[role="dialog"], [role="alertdialog"]') && document.body.style.overflow !== 'hidden') break; }
 await waitFor(() => !document.querySelector('[role="dialog"]') && document.body.style.overflow !== 'hidden');
@@ -137,39 +144,42 @@ const searchAgain = document.getElementById('liveInstructorSearch');
 const clearSearch = document.querySelector('[data-clear-search="liveInstructorSearch"]');
 assert.ok(clearSearch, 'live search exposes an explicit clear button');
 clearSearch.click();
-await new Promise(resolve => setTimeout(resolve, 20));
-assert.equal(searchAgain.value, '');
-assert.equal(document.activeElement, searchAgain);
-await new Promise(resolve => setTimeout(resolve, 350));
+await waitFor(() => searchAgain.value === '' && document.activeElement === searchAgain);
+await waitFor(() => document.querySelectorAll('.instructor-table tbody tr').length === 10);
 assert.equal(document.querySelectorAll('.instructor-table tbody tr').length, 10);
 document.querySelector('[aria-label="Halaman berikutnya"]').click();
 await waitFor(() => document.querySelectorAll('.instructor-table tbody tr').length === 2);
 assert.equal(document.querySelectorAll('.instructor-table tbody tr').length, 2);
 assert.ok(calls.some(([url]) => url.includes('/instructors?page=2')));
+await waitFor(() => document.querySelector('.instructor-table .table-sort'));
 document.querySelector('.instructor-table .table-sort').click();
 await waitFor(() => calls.some(([url]) => { const params = new URL(url, 'http://localhost').searchParams; return params.get('sort') === 'name' && params.get('direction') === 'asc' && params.get('page') === '1'; }));
 pauseNextList = true;
+await waitFor(() => document.querySelector('.instructor-table .table-sort'));
 document.querySelector('.instructor-table .table-sort').click();
-await new Promise(resolve => setTimeout(resolve, 20));
-assert.match(document.querySelector('[role="status"]').textContent, /Memuat instruktur/);
-assert.doesNotMatch(document.querySelector('.instructor-empty').textContent, /Belum ada instruktur/);
+await waitFor(() => document.querySelector('.instructor-panel [role="status"]')?.textContent.match(/Memuat instruktur/));
+assert.doesNotMatch(document.querySelector('.instructor-empty')?.textContent || '', /Belum ada instruktur/);
 releaseList();
-await new Promise(resolve => setTimeout(resolve, 30));
+// The resumed (paused) fetch must fully complete — loading skeleton gone — before marking
+// the NEXT fetch as failed, because the paused fetch still checks the flag after resuming.
+// Anchor on the resource skeleton, not [role="status"]: the success toast legitimately
+// keeps one for a few seconds.
+await waitFor(() => !document.querySelector('.instructor-panel .loading-skeleton') && document.querySelectorAll('.instructor-table tbody tr').length === 10);
 failNextList = true;
+await waitFor(() => document.querySelector('.instructor-table .table-sort'));
 document.querySelector('.instructor-table .table-sort').click();
-await new Promise(resolve => setTimeout(resolve, 30));
-assert.ok(document.querySelector('.instructor-load-error[role="alert"]'));
+await waitFor(() => document.querySelector('.instructor-load-error[role="alert"]'));
 assert.match(document.querySelector('.instructor-load-error[role="alert"]').textContent, /Gagal memuat/);
 document.querySelector('.instructor-load-error button').click();
-await new Promise(resolve => setTimeout(resolve, 30));
+await waitFor(() => document.querySelectorAll('.instructor-table tbody tr').length === 10);
 assert.equal(document.querySelectorAll('.instructor-table tbody tr').length, 10);
 document.querySelector('.live-nav [data-live-page="vehicles"]').click();
-await new Promise(resolve => setTimeout(resolve, 40));
+await waitFor(() => document.querySelector('[data-action="add-car"]'));
 document.querySelector('[data-action="add-car"]').click();
-await new Promise(resolve => setTimeout(resolve, 20));
+await waitFor(() => document.querySelector('form[data-form="save-car"]'));
 const vehicleForm = document.querySelector('form[data-form="save-car"]');
 vehicleForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-await new Promise(resolve => setTimeout(resolve, 20));
+await waitFor(() => document.getElementById('f-name-error'));
 assert.match(document.getElementById('f-name-error').textContent, /Nama mobil wajib diisi/);
 assert.equal(vehicleForm.elements.namedItem('name').getAttribute('aria-invalid'), 'true');
 assert.equal(document.getElementById('modalError'), null);

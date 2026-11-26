@@ -18,9 +18,28 @@ const formatDay = (day: string) => { const date = new Date(`${day}T12:00:00Z`); 
 const formatDivider = (day: string) => { const date = new Date(`${day}T12:00:00Z`); return Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat('id-ID', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(date) : day; };
 
 type Row = Record<string, any>;
-export type OnboardingProgress = { packages: boolean | null; instructors: boolean | null; vehicles: boolean | null; students: boolean | null };
-export const emptyProgress: OnboardingProgress = { packages: null, instructors: null, vehicles: null, students: null };
-export const stepStatus = (value: boolean | null) => value === null ? <span className="step-status unknown">Belum dicek</span> : value ? <span className="step-status ready">Siap</span> : <span className="step-status missing">Belum diisi</span>;
+export type OnboardingProgress = { packages: boolean | null; instructors: boolean | null; vehicles: boolean | null; students: boolean | null; hasSessionEvidence: boolean };
+export const emptyProgress: OnboardingProgress = { packages: null, instructors: null, vehicles: null, students: null, hasSessionEvidence: false };
+const stepStatus = (value: boolean | null) => value === null ? <span className="step-status unknown">Belum dicek</span> : value ? <span className="step-status ready">Data tersedia</span> : <span className="step-status missing">Belum tersedia</span>;
+
+export function OnboardingGuide({ progress, onNavigate, settings = false }: { progress: OnboardingProgress; onNavigate: (page: string) => void; settings?: boolean }) {
+  const steps = [
+    { key: 'packages', title: 'Paket kursus', menu: 'Paket', description: 'Atur paket aktif, transmisi, jumlah pertemuan, dan durasi sesi.' },
+    { key: 'instructors', title: 'Instruktur', menu: 'Instruktur', description: 'Tambahkan instruktur aktif dengan transmisi yang sesuai paket.' },
+    { key: 'vehicles', title: 'Mobil', menu: 'Mobil', description: 'Tambahkan mobil aktif dengan transmisi yang sesuai paket.' },
+    { key: 'students', title: 'Murid', menu: 'Murid', description: 'Daftarkan murid, lalu tambahkan paket aktif dengan kuota melalui detail murid.' },
+  ] as const;
+  const next = steps.find(step => progress[step.key] !== true);
+  const condensed = progress.hasSessionEvidence || !next;
+  return <section className={settings ? 'notice setup-next-steps' : 'panel onboarding-guide'} aria-label="Persiapan penjadwalan">
+    <div className="panel-head"><div><h2 className="panel-title">{progress.hasSessionEvidence ? 'Jadwal sudah tersedia' : condensed ? 'Data dasar tersedia' : settings ? 'Profil sekolah lengkap' : 'Persiapan penjadwalan'}</h2>
+      <p className="panel-sub">{progress.hasSessionEvidence ? 'Buka Jadwal untuk melihat dan mengelola sesi latihan.' : condensed ? 'Paket murid, kuota, dan kecocokan transmisi diperiksa saat penjadwalan.' : 'Berikut persiapan penjadwalan. Status mencerminkan data yang dimuat saat menu dibuka.'}</p></div></div>
+    {condensed ? <div className="onboarding-ready"><Button sm variant="primary" onClick={() => onNavigate('sessions')}>Buka menu Jadwal</Button></div> : <ol className="onboarding-steps">{steps.map((step, index) => <li key={step.key} className={next === step ? 'is-next' : undefined}>
+      <div className="onboarding-step-copy"><strong>{index + 1}. {step.title} {stepStatus(progress[step.key])}</strong><p>{step.description}</p></div>
+      <Button sm variant={next === step ? 'primary' : 'quiet'} onClick={() => onNavigate(step.key)}>Buka menu {step.menu}</Button>
+    </li>)}</ol>}
+  </section>;
+}
 const fields: Record<string, { key: string; label: string; type?: string }[]> = {
   students: [{ key: 'name', label: 'Nama murid' }, { key: 'phone', label: 'WhatsApp' }],
   packages: [{ key: 'name', label: 'Nama paket' }, { key: 'total_sessions', label: 'Jumlah pertemuan', type: 'number' }, { key: 'normal_price', label: 'Harga (Rp)', type: 'number' }, { key: 'session_duration_minutes', label: 'Durasi per pertemuan (menit)', type: 'number' }, { key: 'description', label: 'Deskripsi (opsional)' }],
@@ -66,13 +85,10 @@ function Home({ school, api, onSchedule, onNavigate, progress, markProgress }: {
     const validDate = Boolean(row.session_date && Number.isFinite(Date.parse(`${row.session_date}T12:00:00Z`)));
     return <button type="button" className="agenda-entry agenda-entry-link" key={row.id} disabled={!validDate} onClick={() => onSchedule(row.session_date)} aria-label={`Lihat jadwal ${row.student_name || "murid"} ${formatDay(row.session_date)}`}><div className="agenda-time">{row.start_time?.slice(0, 5)}<small>{formatDay(row.session_date)}</small></div><div className="agenda-detail"><div className="agenda-primary"><strong>{row.student_name || 'Murid tidak tersedia'}</strong><Badge status={row.status} /></div><div className="agenda-meta">{row.start_time?.slice(0, 5)}–{row.end_time?.slice(0, 5)} WITA</div></div><span className="agenda-entry-arrow" aria-hidden="true"><Icon name="chevron-right" extra="sm" /></span></button>;
   })}</div> : <div className="home-empty"><Icon name="calendar" extra="lg" /><p>{empty}</p></div>;
-  const showSetupGuide = Boolean(data && data.today_count === 0 && data.overdue_count === 0 && !data.today_sessions.length && !data.overdue_sessions.length);
   useEffect(() => {
-    if (data && (data.today_count > 0 || data.overdue_count > 0)) markProgress({ packages: true, instructors: true, vehicles: true, students: true });
+    if (data && (data.today_count > 0 || data.overdue_count > 0 || data.today_sessions.length || data.overdue_sessions.length)) markProgress({ hasSessionEvidence: true });
   }, [data, markProgress]);
-  const resourcesStep = progress.instructors === true && progress.vehicles === true ? true : progress.instructors === false || progress.vehicles === false ? false : null;
-  const stepsReady = progress.packages === true && progress.instructors === true && progress.vehicles === true && progress.students === true;
-  return <><HomeHeading busy={busy} onReload={() => setRevision(n => n + 1)} onSchedule={() => onSchedule()} />{busy ? <HomeMetricsSkeleton /> : error || !data ? <div role="alert" className="instructor-load-error">Gagal memuat beranda. <Button onClick={() => setRevision(n => n + 1)}>Coba lagi</Button></div> : <><div className="metrics home-metrics"><Metric label="Menunggu konfirmasi" value={data.pending_count} foot="Jadwal hari ini" icon="clock" tone="yellow" /><Metric label="Sesi lewat" value={data.overdue_count} foot="Belum diperbarui · 30 hari terakhir" icon="alert" tone={data.overdue_count ? 'hot' : ''} /></div><div className="layout-two home-work"><section className="panel"><div className="panel-head"><div><h2 className="panel-title">Agenda hari ini</h2><p className="panel-sub">{data.date} · WITA · {data.today_count} sesi</p></div></div>{list(data.today_sessions, 'Belum ada sesi hari ini.')}</section><section className="panel"><div className="panel-head"><div><h2 className="panel-title">Perlu ditindaklanjuti</h2><p className="panel-sub">Sesi lewat belum diperbarui · 30 hari terakhir ({moveDay(data.date, -30)}–{data.date})</p></div></div>{list(data.overdue_sessions, 'Tidak ada sesi lewat yang perlu diperbarui.')}</section></div>{showSetupGuide && <section className="panel onboarding-guide" aria-label="Panduan persiapan operasional"><div className="panel-head"><div><h2 className="panel-title">Mulai operasional sekolah</h2><p className="panel-sub">{stepsReady ? 'Semua data operasional sudah siap. Jadwalkan sesi latihan pertama Anda.' : 'Siapkan data dasar berikut sesuai urutan sebelum menjadwalkan sesi latihan pertama. Progres tercatat saat menu terkait dibuka.'}</p></div></div>{stepsReady ? <div className="onboarding-ready"><Button variant="primary" onClick={() => onSchedule()}>Buka jadwal</Button></div> : <ol className="onboarding-steps"><li><div><strong>1. Paket kursus {stepStatus(progress.packages)}</strong><p>Atur pilihan paket, transmisi, jumlah pertemuan, dan durasi per sesi.</p></div><Button sm onClick={() => onNavigate('packages')}>Buka menu Paket</Button></li><li><div><strong>2. Instruktur &amp; Mobil {stepStatus(resourcesStep)}</strong><p>Tambahkan instruktur dan mobil aktif dengan transmisi yang sesuai paket.</p></div><div className="student-detail-actions"><Button sm onClick={() => onNavigate('instructors')}>Buka menu Instruktur</Button><Button sm onClick={() => onNavigate('vehicles')}>Buka menu Mobil</Button></div></li><li><div><strong>3. Murid &amp; paket murid {stepStatus(progress.students)}</strong><p>Daftarkan murid lalu tambahkan paket aktif pada detail murid.</p></div><Button sm onClick={() => onNavigate('students')}>Buka menu Murid</Button></li></ol>}</section>}</>}</>;
+  return <><HomeHeading busy={busy} onReload={() => setRevision(n => n + 1)} onSchedule={() => onSchedule()} />{busy ? <HomeMetricsSkeleton /> : error || !data ? <div role="alert" className="instructor-load-error">Gagal memuat beranda. <Button onClick={() => setRevision(n => n + 1)}>Coba lagi</Button></div> : <><div className="metrics home-metrics"><Metric label="Menunggu konfirmasi" value={data.pending_count} foot="Jadwal hari ini" icon="clock" tone="yellow" /><Metric label="Sesi lewat" value={data.overdue_count} foot="Belum diperbarui · 30 hari terakhir" icon="alert" tone={data.overdue_count ? 'hot' : ''} /></div><div className="layout-two home-work"><section className="panel"><div className="panel-head"><div><h2 className="panel-title">Agenda hari ini</h2><p className="panel-sub">{data.date} · WITA · {data.today_count} sesi</p></div></div>{list(data.today_sessions, 'Belum ada sesi hari ini.')}</section><section className="panel"><div className="panel-head"><div><h2 className="panel-title">Perlu ditindaklanjuti</h2><p className="panel-sub">Sesi lewat belum diperbarui · 30 hari terakhir ({moveDay(data.date, -30)}–{data.date})</p></div></div>{list(data.overdue_sessions, 'Tidak ada sesi lewat yang perlu diperbarui.')}</section></div><OnboardingGuide progress={progress} onNavigate={page => page === 'sessions' ? onSchedule() : onNavigate(page)} /></>}</>;
 }
 
 export function LiveApp({ school: profile, api, initialPage, userEmail, onNavigate, loggingOut, onLogout, progress, markProgress }: {
@@ -223,6 +239,7 @@ export function LiveApp({ school: profile, api, initialPage, userEmail, onNaviga
       if (page === 'sessions') {
         setLoadedRange(range);
         markProgress({
+          ...((next.sessions || []).length ? { hasSessionEvidence: true } : {}),
           students: (next.students || []).length > 0,
           instructors: (next.instructors || []).some(x => x.active),
           vehicles: (next.vehicles || []).some(x => x.active),
@@ -314,6 +331,7 @@ export function LiveApp({ school: profile, api, initialPage, userEmail, onNaviga
       }
       const path = `/schools/${school}/${page}${editing?.id ? `/${editing.id}` : ''}`;
       await api(path, editing ? 'PATCH' : 'POST', body);
+      if (page === 'sessions') markProgress({ hasSessionEvidence: true });
       setEditing(null); setEditorOpen(false);
       if (page === 'sessions') { setEnrollmentId(''); setStart(''); setEnrollmentRevision(n => n + 1); showToast(editing ? 'Perubahan sesi latihan tersimpan.' : 'Jadwal sesi latihan berhasil dibuat.'); }
       await refresh();
@@ -413,7 +431,7 @@ export function LiveApp({ school: profile, api, initialPage, userEmail, onNaviga
   // They disappear entirely once every prerequisite is ready, and their buttons stay quiet
   // so the page header keeps the only primary CTA (Tambah paket/instruktur/mobil).
   const chainNotice = (kind: 'packages' | 'instructors' | 'vehicles') => {
-    if (stepsReady) return undefined;
+    if (stepsReady || progress.hasSessionEvidence || progress[kind] !== true) return undefined;
     const jump = (target: string, label: string) => <Button sm onClick={() => jumpToPage(target)}>{label}</Button>;
     if (kind === 'packages') {
       const relevant = justSaved === 'packages' || progress.instructors === false || progress.vehicles === false;
@@ -544,7 +562,7 @@ export function LiveApp({ school: profile, api, initialPage, userEmail, onNaviga
           }}>Reset filter</Button>
         </div>
       {loadedRange && (loadedRange.from !== range.from || loadedRange.to !== range.to) && <p role="status" className="notice">Data terakhir dari {loadedRange.from} sampai {loadedRange.to}. Rentang baru belum berhasil dimuat.</p>}
-      {busy && <div role="status"><p>Memuat jadwal?</p><div className="loading-skeleton" aria-hidden="true">{[0, 1, 2].map(i => <div className="agenda-entry" key={i}><span className="skeleton-bar" /><span className="skeleton-bar" /></div>)}</div></div>}
+      {busy && <div role="status"><p>Memuat jadwal…</p><div className="loading-skeleton" aria-hidden="true">{[0, 1, 2].map(i => <div className="agenda-entry" key={i}><span className="skeleton-bar" /><span className="skeleton-bar" /></div>)}</div></div>}
       {!busy && !error && !rows.length && missingSchedulePrereqs && <section className="notice schedule-readiness" aria-label="Kesiapan pembuatan jadwal"><strong>Prasyarat jadwal belum lengkap</strong><p>Untuk menjadwalkan sesi latihan, pastikan paket kursus, instruktur aktif, mobil aktif, dan murid dengan paket aktif sudah tersedia.</p><ul className="readiness-list"><li><span>Paket kursus aktif: <strong>{progress.packages === null ? 'Belum dicek' : progress.packages ? 'Siap' : 'Belum ada'}</strong></span>{progress.packages === false && <Button sm onClick={() => jumpToPage('packages')}>Buka menu Paket</Button>}</li><li><span>Instruktur aktif: <strong>{hasActiveInstructor ? 'Siap' : 'Belum ada'}</strong></span>{!hasActiveInstructor && <Button sm onClick={() => jumpToPage('instructors')}>Buka menu Instruktur</Button>}</li><li><span>Mobil aktif: <strong>{hasActiveVehicle ? 'Siap' : 'Belum ada'}</strong></span>{!hasActiveVehicle && <Button sm onClick={() => jumpToPage('vehicles')}>Buka menu Mobil</Button>}</li><li><span>Data murid: <strong>{hasStudents ? 'Siap' : 'Belum ada'}</strong></span>{!hasStudents && <Button sm onClick={() => jumpToPage('students')}>Buka menu Murid</Button>}</li></ul></section>}
       {!busy && !error && !visibleRows.length && <EmptyState title={!rows.length ? 'Belum ada sesi pada rentang ini' : 'Tidak ada sesi dengan status tersebut'} description={!rows.length ? 'Ubah rentang waktu atau jadwalkan sesi baru.' : 'Coba status lain atau ubah rentang waktu.'} />}
       <div hidden={busy}>

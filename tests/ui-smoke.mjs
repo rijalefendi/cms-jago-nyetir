@@ -315,6 +315,13 @@ dom.window.setTimeout = (callback, delay, ...args) => {
 document.querySelector('[data-page="paket"]').click();
 await tick();
 assert.ok(document.querySelector('[data-action="add-package"]'), 'package creation is available');
+const packageSearch = document.querySelector('#packageSearch');
+editInput(packageSearch, document.querySelector('.package-panel tbody tr strong').textContent);
+await tick();
+assert.match(document.querySelector('.instructor-footer').textContent, /Menampilkan 1 dari 1 paket/);
+editInput(packageSearch, '');
+await tick();
+assert.ok(!document.querySelector('.package-panel').textContent.includes('â'));
 document.querySelector('[data-action="delete-package"][data-id="P1"]').click();
 await tick();
 assert.match(document.querySelector('[role="alertdialog"]').textContent, /murid/i);

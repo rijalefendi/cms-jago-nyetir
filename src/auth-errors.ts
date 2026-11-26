@@ -1,3 +1,5 @@
+import { useCallback, useEffect, useState } from 'react';
+
 type Field = 'email' | 'password';
 export type AuthFormError = {
   message: string; fields: Partial<Record<Field, string>>; code?: string; status?: number;
@@ -16,7 +18,32 @@ const errors: Record<string, { message: string; fields?: Field[] }> = {
   user_already_exists: { message: 'Pendaftaran belum dapat dilanjutkan. Coba masuk atau periksa email verifikasi.' },
   email_exists: { message: 'Pendaftaran belum dapat dilanjutkan. Coba masuk atau periksa email verifikasi.' },
   request_timeout: { message: 'Layanan terlalu lama merespons. Periksa koneksi dan coba lagi.' },
+  captcha_verification_failed: { message: 'Verifikasi keamanan belum lolos. Muat ulang halaman lalu coba lagi.' },
 };
+
+export const RATE_LIMIT_COOLDOWN_SECONDS = 60;
+
+export function isRateLimitError(error: unknown): boolean {
+  const detail = error && typeof error === 'object' ? error as Record<string, unknown> : {};
+  return detail.code === 'over_request_rate_limit' || detail.code === 'over_email_send_rate_limit' || detail.status === 429;
+}
+
+// Visual-only wait after the server rejects a request as rate-limited; the
+// server stays the sole enforcer and this never blocks a request itself.
+export function useRateLimitCooldown() {
+  const [seconds, setSeconds] = useState(0);
+  const active = seconds > 0;
+  useEffect(() => {
+    if (!active) return;
+    const id = setInterval(() => setSeconds(value => value > 1 ? value - 1 : 0), 1000);
+    return () => clearInterval(id);
+  }, [active]);
+  return {
+    seconds, active,
+    start: useCallback((initial: number) => setSeconds(initial), []),
+    reset: useCallback(() => setSeconds(0), []),
+  } as const;
+}
 
 export function authFormError(error: unknown, action: 'login' | 'signup', credentials: { email: string; password: string }): AuthFormError {
   const detail = error && typeof error === 'object' ? error as Record<string, unknown> : {};

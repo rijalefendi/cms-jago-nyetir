@@ -4,6 +4,8 @@ const url = import.meta.env.VITE_SUPABASE_URL;
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
 export const liveConfigured = Boolean(url || key);
 export const supabase = url && key ? createClient(url, key) : null;
+const siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY;
+export const turnstileSiteKey = typeof siteKey === 'string' && siteKey.trim() ? siteKey.trim() : '';
 
 export type School = {
   id: string; name: string; location: string | null; setup_complete: boolean;

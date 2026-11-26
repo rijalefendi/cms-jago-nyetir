@@ -9,6 +9,7 @@ const buildAuthBundle = (preview = false, production = false) => buildSync({
     'import.meta.env.VITE_SUPABASE_URL': '"https://test.supabase.co"',
     'import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY': '"public-test-key"',
     'import.meta.env.VITE_SUPABASE_ANON_KEY': 'null',
+    'import.meta.env.VITE_TURNSTILE_SITE_KEY': 'null',
     'import.meta.env.VITE_AUTH_DASHBOARD_PREVIEW': JSON.stringify(String(preview)),
     'import.meta.env.DEV': String(!production),
   },
@@ -29,8 +30,9 @@ export async function waitFor(predicate) {
   throw Error('Timed out waiting for UI state');
 }
 
-export function fixture({ initial = null, url = 'http://localhost/', fetch = async () => response([school]), restore, preview = false, production = false } = {}) {
+export function fixture({ initial = null, url = 'http://localhost/', fetch = async () => response([school]), restore, preview = false, production = false, storage = {} } = {}) {
   const dom = new JSDOM('<!doctype html><div id="root"></div>', { url, runScripts: 'dangerously', pretendToBeVisual: true });
+  for (const [key, value] of Object.entries(storage)) dom.window.sessionStorage.setItem(key, JSON.stringify(value));
   let current = initial;
   let listener;
   const calls = [];

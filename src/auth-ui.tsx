@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import { ApiError, request, supabase, type Api, type School } from './auth';
-import { LiveApp, emptyProgress, stepStatus, type OnboardingProgress } from './live';
+import { ApiError, request, supabase, turnstileSiteKey, type Api, type School } from './auth';
+import { LiveApp, emptyProgress, OnboardingGuide, type OnboardingProgress } from './live';
 import { HomeHeading, HomeMetricsSkeleton } from './ui';
 import { DashboardShell, SidebarStateProvider } from './DashboardShell';
-import { authFormError, type AuthFormError } from './auth-errors';
+import { authFormError, isRateLimitError, useRateLimitCooldown, RATE_LIMIT_COOLDOWN_SECONDS, type AuthFormError } from './auth-errors';
 import { PasswordRecovery } from './PasswordRecovery';
+import { TurnstileCaptcha } from './Turnstile';
 import { LoginLayout } from './LoginLayout';
 import { TimePicker } from './TimePicker';
 import { Invitations } from './Invitations';
@@ -16,22 +17,30 @@ const pageSlugs: Record<string, string> = { home: 'home', students: 'students', 
 const pageFromUrl = () => ['/', '/login', '/register'].includes(location.pathname) ? 'home' : Object.keys(pageSlugs).find(page => location.pathname.match(/^(?:\/schools\/[^/]+)?\/dashboard\/([^/]+)\/?$/)?.[1] === pageSlugs[page]) || 'not-found';
 const progressStorageKey = (schoolId: string) => `atursetir-onboarding:${schoolId}`;
 
-// Onboarding guidance state: session-scoped, per school, and never authoritative —
-// only reflects data already loaded by the menus the owner has visited.
+function readProgress(schoolId: string | undefined): OnboardingProgress {
+  if (!schoolId) return emptyProgress;
+  try {
+    const raw = sessionStorage.getItem(progressStorageKey(schoolId));
+    if (raw) {
+      const cached = JSON.parse(raw);
+      return Object.fromEntries(Object.entries(emptyProgress).map(([key, fallback]) => [key,
+        typeof cached?.[key] === 'boolean' ? cached[key] : fallback,
+      ])) as OnboardingProgress;
+    }
+  } catch { /* Corrupt storage falls back to unchecked steps. */ }
+  return emptyProgress;
+}
+
+// Cached progress guides navigation; it never grants operational access.
 function useOnboardingProgress(schoolId: string | undefined) {
-  const [progress, setProgress] = useState<OnboardingProgress>(() => {
-    if (!schoolId) return emptyProgress;
-    try {
-      const raw = sessionStorage.getItem(progressStorageKey(schoolId));
-      if (raw) return { ...emptyProgress, ...JSON.parse(raw) };
-    } catch { /* Corrupt storage falls back to unchecked steps. */ }
-    return emptyProgress;
-  });
+  const [state, setState] = useState(() => ({ schoolId, progress: readProgress(schoolId) }));
+  const progress = state.schoolId === schoolId ? state.progress : readProgress(schoolId);
+  if (state.schoolId !== schoolId) setState({ schoolId, progress });
   const markProgress = useCallback((patch: Partial<OnboardingProgress>) => {
-    setProgress(current => {
-      const next = { ...current, ...patch };
+    setState(current => {
+      const next = { ...(current.schoolId === schoolId ? current.progress : readProgress(schoolId)), ...patch };
       if (schoolId) { try { sessionStorage.setItem(progressStorageKey(schoolId), JSON.stringify(next)); } catch { /* Guidance only; ignore storage failures. */ } }
-      return next;
+      return { schoolId, progress: next };
     });
   }, [schoolId]);
   return [progress, markProgress] as const;
@@ -114,6 +123,11 @@ function Login({ error: restoreError, clearError, retry, onForgot }: { onForgot:
   const [clientFields, setClientFields] = useState<AuthFormError['fields']>({});
   const [showPassword, setShowPassword] = useState(false);
   const [passwordLength, setPasswordLength] = useState(0);
+  const cooldown = useRateLimitCooldown();
+  const captchaRequired = Boolean(turnstileSiteKey);
+  const [captchaToken, setCaptchaToken] = useState('');
+  const [captchaKey, setCaptchaKey] = useState(0);
+  const resetCaptcha = () => { setCaptchaToken(''); setCaptchaKey(key => key + 1); };
   const formRef = useRef<HTMLFormElement>(null);
   const [sent, setSent] = useState(false);
   const fields = { ...clientFields, ...error?.fields };
@@ -124,7 +138,7 @@ function Login({ error: restoreError, clearError, retry, onForgot }: { onForgot:
     if (!busy && field) (formRef.current?.elements.namedItem(field) as HTMLInputElement | null)?.focus();
   }, [error, busy]);
   function changeMode(next: 'login' | 'signup') {
-    setMode(next); setSent(false); setError(null); setClientFields({}); setShowPassword(false); clearError();
+    setMode(next); setSent(false); setError(null); setClientFields({}); setShowPassword(false); clearError(); cooldown.reset();
   }
   useEffect(() => {
     if (location.pathname === '/forgot-password') return;
@@ -175,14 +189,22 @@ function Login({ error: restoreError, clearError, retry, onForgot }: { onForgot:
     clearError();
     const invalid = inputs.find(input => nextFields[input.name]);
     if (invalid) { invalid.focus(); return; }
+    if (captchaRequired && !captchaToken) { setError({ message: 'Selesaikan verifikasi keamanan terlebih dahulu.', fields: {} }); return; }
     pending.current = true; setBusy(true); setError(null);
     try {
-      const result = mode === 'login' ? await supabase!.auth.signInWithPassword(credentials)
-        : await supabase!.auth.signUp({ ...credentials, options: { emailRedirectTo: `${location.origin}/auth/callback` } });
+      const captcha = captchaRequired ? { captchaToken } : {};
+      const result = mode === 'login' ? await supabase!.auth.signInWithPassword({ ...credentials, options: { ...captcha } })
+        : await supabase!.auth.signUp({ ...credentials, options: { emailRedirectTo: `${location.origin}/auth/callback`, ...captcha } });
       if (result.error) {
         setError(authFormError(result.error, mode, credentials));
+        resetCaptcha();
+        if (isRateLimitError(result.error)) cooldown.start(RATE_LIMIT_COOLDOWN_SECONDS);
       } else if (mode === 'signup' && !result.data.session) setSent(true);
-    } catch (error) { setError(authFormError(error, mode, credentials)); }
+    } catch (error) {
+      setError(authFormError(error, mode, credentials));
+      resetCaptcha();
+      if (isRateLimitError(error)) cooldown.start(RATE_LIMIT_COOLDOWN_SECONDS);
+    }
     finally { pending.current = false; setBusy(false); }
   }
   return <LoginLayout><section className="panel panel-pad auth-panel">
@@ -205,7 +227,9 @@ function Login({ error: restoreError, clearError, retry, onForgot }: { onForgot:
         </small>}
       </div>
       {formError && <div className="notice auth-error" role="alert"><p>{formError}</p>{error?.code && <small>Kode: {error.code}{error.status !== undefined && error.status > 0 ? ` · HTTP ${error.status}` : ''}</small>}{restoreError && <button type="button" className="btn btn-quiet" onClick={retry}>Coba lagi</button>}</div>}
-      <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? 'Memproses…' : mode === 'login' ? 'Masuk' : 'Daftar akun'}</button>
+      {captchaRequired && <TurnstileCaptcha siteKey={turnstileSiteKey} resetKey={captchaKey} onToken={setCaptchaToken} onExpire={() => setCaptchaToken('')} onError={() => setCaptchaToken('')} />}
+      {cooldown.active && <p className="auth-cooldown">Coba lagi dalam {cooldown.seconds} detik.</p>}
+      <button type="submit" className="btn btn-primary" disabled={busy || cooldown.active}>{busy ? 'Memproses…' : mode === 'login' ? 'Masuk' : 'Daftar akun'}</button>
     </form>}
     <p className="auth-switch">{!sent && (mode === 'login' ? 'Belum punya akun? ' : 'Sudah punya akun? ')}<button className="inline-link" disabled={busy} data-auth-mode={mode === 'login' ? 'signup' : 'login'} onClick={() => { const next = mode === 'login' && !sent ? 'signup' : 'login'; history.pushState(null, '', next === 'signup' ? '/register' : '/login'); changeMode(next); }}>{mode === 'login' && !sent ? 'Daftar gratis' : sent ? 'Kembali ke Masuk' : 'Masuk'}</button></p>
   </section></LoginLayout>;
@@ -301,12 +325,6 @@ function SchoolWorkspace({ userId, userEmail }: { userId: string; userEmail?: st
   const locked = !school?.setup_complete;
   const invitationPage = operationPage === 'invitations';
   const denied = school && school.role !== 'owner' && (settings || operationPage === 'invitations');
-  const stepsReady = progress.packages === true && progress.instructors === true && progress.vehicles === true && progress.students === true;
-  const resourcesStep = progress.instructors === true && progress.vehicles === true ? true : progress.instructors === false || progress.vehicles === false ? false : null;
-  const nextStep = stepsReady ? null : progress.packages !== true ? { page: 'packages', label: 'Buka menu Paket' }
-    : progress.instructors !== true ? { page: 'instructors', label: 'Buka menu Instruktur' }
-    : progress.vehicles !== true ? { page: 'vehicles', label: 'Buka menu Mobil' }
-    : { page: 'students', label: 'Buka menu Murid' };
   if (!loading && !error && school && (denied || operationPage === 'not-found' || (locked && school.role === 'staff'))) return <AccessPage school={school} locked={locked} kind={operationPage === 'not-found' ? 'not-found' : locked && !denied ? 'setup' : 'denied'} userEmail={userEmail} loggingOut={loggingOut} onLogout={logout} onNavigate={navigate} />;
   if (!loading && !error && school?.role === 'owner' && school.setup_complete && !settings && invitationPage) return <DashboardShell school={school} page="invitations" userEmail={userEmail} loggingOut={loggingOut} onLogout={logout} onNavigate={navigate}><Invitations api={api} schoolId={school.id} /></DashboardShell>;
   if (!loading && !error && !locked && !settings) return <LiveApp school={school!} api={api} initialPage={operationPage} userEmail={userEmail} onNavigate={navigate} loggingOut={loggingOut} onLogout={logout} progress={progress} markProgress={markProgress} />;
@@ -314,8 +332,7 @@ function SchoolWorkspace({ userId, userEmail }: { userId: string; userEmail?: st
     {loading ? <><HomeHeading busy /><HomeMetricsSkeleton /></> : error ? <section className="panel panel-pad"><p id="setup-reason" role="alert">{error}</p><button className="btn btn-primary" onClick={load}>Coba lagi</button>{unauthorized && <button className="btn btn-quiet" onClick={logout}>Masuk ulang</button>}</section>
       : <><div className="page-heading"><div><h1>Pengaturan Sekolah</h1><p className="page-sub">{school ? 'Profil dan jam operasional sekolah dalam WITA.' : 'Buat sekolah dengan mengisi profil dan jam operasional (WITA).'}</p></div></div>
         {locked ? <p id="setup-reason" className="notice">Lengkapi data sekolah terlebih dahulu untuk mengakses menu operasional.</p>
-          : stepsReady ? <section className="notice setup-next-steps" aria-label="Status persiapan operasional"><strong>Semua prasyarat operasional sudah lengkap.</strong><p>Paket, instruktur, mobil, dan murid sudah siap digunakan untuk penjadwalan.</p><div className="student-detail-actions"><button type="button" className="btn btn-primary btn-sm" onClick={() => navigate('sessions')}>Buka menu Jadwal</button><button type="button" className="inline-link" onClick={() => navigate(operationPage)}>Kembali ke operasional</button></div></section>
-          : <section className="notice setup-next-steps" aria-label="Langkah persiapan operasional"><strong>Sekolah siap dioperasikan.</strong><p>Urutan persiapan jadwal pertama: 1. Paket kursus {stepStatus(progress.packages)} → 2. Instruktur &amp; Mobil {stepStatus(resourcesStep)} → 3. Murid &amp; paketnya {stepStatus(progress.students)} → 4. Jadwal sesi.</p><p>Progres tercatat saat menu terkait dibuka. Lanjutkan langkah yang belum siap:</p><div className="student-detail-actions">{nextStep && <button type="button" className="btn btn-primary btn-sm" onClick={() => navigate(nextStep.page)}>{nextStep.label}</button>}<button type="button" className="inline-link" onClick={() => navigate(operationPage)}>Kembali ke operasional</button></div></section>}
+          : <OnboardingGuide settings progress={progress} onNavigate={navigate} />}
         <SchoolProfile showHeading={false} key={school?.id || 'new'} school={school} api={api} saved={saved} onSaved={async () => { setSettings(true); setSaved(true); await load(); }} retryAccess={() => setAttempt(n => n + 1)} />
       </>}
   </DashboardShell>;

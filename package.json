@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test tests/demoStore.test.mjs tests/instructorTable.test.mjs tests/packagePricing.test.mjs tests/timePicker.test.mjs",
     "test:auth": "node tests/auth-ui.mjs && node tests/staff-ui.mjs",
-    "test:ui": "esbuild src/main.tsx --bundle --outfile=dist/qa.js --loader:.html=text --format=iife --platform=browser --minify --define:import.meta.env.VITE_SUPABASE_URL=null --define:import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY=null --define:import.meta.env.VITE_SUPABASE_ANON_KEY=null --define:import.meta.env.DEV=false --define:import.meta.env.VITE_AUTH_DASHBOARD_PREVIEW=null && node tests/ui-smoke.mjs && node tests/live-instructor-ui.mjs && node tests/live-v1-ui.mjs && node tests/live-session-lock-ui.mjs && node tests/students-ui.mjs && npm run test:auth"
+    "test:ui": "esbuild src/main.tsx --bundle --outfile=dist/qa.js --loader:.html=text --format=iife --platform=browser --minify --define:import.meta.env.VITE_SUPABASE_URL=null --define:import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY=null --define:import.meta.env.VITE_SUPABASE_ANON_KEY=null --define:import.meta.env.VITE_TURNSTILE_SITE_KEY=null --define:import.meta.env.DEV=false --define:import.meta.env.VITE_AUTH_DASHBOARD_PREVIEW=null && node tests/ui-smoke.mjs && node tests/live-instructor-ui.mjs && node tests/live-v1-ui.mjs && node tests/live-session-lock-ui.mjs && node tests/students-ui.mjs && npm run test:auth"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.119.0",

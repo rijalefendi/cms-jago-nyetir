@@ -1,7 +1,9 @@
 import React, { useRef, useState } from 'react';
-import { supabase } from './auth';
+import { supabase, turnstileSiteKey } from './auth';
+import { isRateLimitError, useRateLimitCooldown, RATE_LIMIT_COOLDOWN_SECONDS } from './auth-errors';
 import { LoginLayout } from './LoginLayout';
 import { Button } from './ui';
+import { TurnstileCaptcha } from './Turnstile';
 
 export function PasswordRecovery({ reset, validSession, restoreError, onNavigate }: { reset: boolean; validSession: boolean; restoreError: string; onNavigate: (path: string) => void }) {
   const [busy, setBusy] = useState(false);
@@ -11,6 +13,11 @@ export function PasswordRecovery({ reset, validSession, restoreError, onNavigate
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const cooldown = useRateLimitCooldown();
+  const captchaRequired = Boolean(turnstileSiteKey);
+  const [captchaToken, setCaptchaToken] = useState('');
+  const [captchaKey, setCaptchaKey] = useState(0);
+  const resetCaptcha = () => { setCaptchaToken(''); setCaptchaKey(key => key + 1); };
   const unavailable = reset && (!validSession || Boolean(restoreError));
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault(); if (pending.current) return;
@@ -28,14 +35,18 @@ export function PasswordRecovery({ reset, validSession, restoreError, onNavigate
     setFieldErrors(errors); setError('');
     if (Object.keys(errors).length) { (form.elements.namedItem(Object.keys(errors)[0]) as HTMLElement)?.focus(); return; }
     if (unavailable) return;
+    if (!reset && captchaRequired && !captchaToken) { setError('Selesaikan verifikasi keamanan terlebih dahulu.'); return; }
     pending.current = true; setBusy(true);
     try {
-      const result = reset ? await supabase!.auth.updateUser({ password: values.password }) : await supabase!.auth.resetPasswordForEmail(values.email.trim(), { redirectTo: `${location.origin}/forgot-password?reset=1` });
+      const result = reset ? await supabase!.auth.updateUser({ password: values.password })
+        : await supabase!.auth.resetPasswordForEmail(values.email.trim(), { redirectTo: `${location.origin}/forgot-password?reset=1`, ...(captchaRequired ? { captchaToken } : {}) });
       if (result.error) throw result.error;
       if (reset) setSaved(true); else setSent(true);
     } catch (e) {
       const code = (e as { code?: string })?.code;
-      setError(code === 'over_email_send_rate_limit' || code === 'over_request_rate_limit' ? 'Terlalu banyak permintaan. Tunggu sebentar lalu coba lagi.' : code === 'same_password' ? 'Gunakan kata sandi yang berbeda dari sebelumnya.' : code === 'weak_password' ? 'Kata sandi terlalu lemah. Gunakan sandi yang lebih kuat.' : reset ? 'Kata sandi belum berhasil diperbarui. Coba lagi atau minta tautan baru.' : 'Tautan belum berhasil diminta. Periksa koneksi lalu coba lagi.');
+      setError(code === 'same_password' ? 'Gunakan kata sandi yang berbeda dari sebelumnya.' : code === 'weak_password' ? 'Kata sandi terlalu lemah. Gunakan sandi yang lebih kuat.' : reset ? 'Kata sandi belum berhasil diperbarui. Coba lagi atau minta tautan baru.' : 'Tautan belum berhasil diminta. Periksa koneksi lalu coba lagi.');
+      resetCaptcha();
+      if (isRateLimitError(e)) cooldown.start(RATE_LIMIT_COOLDOWN_SECONDS);
     } finally { pending.current = false; setBusy(false); }
   }
   async function backToLogin() {
@@ -61,7 +72,9 @@ export function PasswordRecovery({ reset, validSession, restoreError, onNavigate
       {reset ? <><label className="form-field">Kata sandi baru<input name="password" type={showPassword ? "text" : "password"} required minLength={8} autoComplete="new-password" disabled={busy} aria-invalid={Boolean(fieldErrors.password)} aria-describedby={fieldErrors.password ? 'recovery-password-error' : undefined} />{fieldErrors.password && <small id="recovery-password-error" className="field-error" role="alert">{fieldErrors.password}</small>}</label><label className="form-field">Konfirmasi kata sandi<input name="confirm" type={showPassword ? "text" : "password"} required autoComplete="new-password" disabled={busy} aria-invalid={Boolean(fieldErrors.confirm)} aria-describedby={fieldErrors.confirm ? 'recovery-confirm-error' : undefined} />{fieldErrors.confirm && <small id="recovery-confirm-error" className="field-error" role="alert">{fieldErrors.confirm}</small>}</label></> : <label className="form-field">Email<input name="email" type="email" required autoComplete="email" disabled={busy} aria-invalid={Boolean(fieldErrors.email)} aria-describedby={fieldErrors.email ? 'recovery-email-error' : undefined} />{fieldErrors.email && <small id="recovery-email-error" className="field-error" role="alert">{fieldErrors.email}</small>}</label>}
       {reset && <label><input type="checkbox" checked={showPassword} onChange={e => setShowPassword(e.target.checked)} disabled={busy} /> Tampilkan kata sandi</label>}
       {error && <p role="alert" className="notice auth-error">{error}</p>}
-      <Button variant="primary" type="submit" disabled={busy}>{busy ? 'Memproses…' : reset ? 'Simpan kata sandi' : 'Kirim tautan pemulihan'}</Button>
+      {!reset && captchaRequired && <TurnstileCaptcha siteKey={turnstileSiteKey} resetKey={captchaKey} onToken={setCaptchaToken} onExpire={() => setCaptchaToken('')} onError={() => setCaptchaToken('')} />}
+      {cooldown.active && <p className="auth-cooldown">Coba lagi dalam {cooldown.seconds} detik.</p>}
+      <Button variant="primary" type="submit" disabled={busy || cooldown.active}>{busy ? 'Memproses…' : reset ? 'Simpan kata sandi' : 'Kirim tautan pemulihan'}</Button>
     </form>}
     {(unavailable || (reset && !saved && error)) && <Button onClick={() => onNavigate('/forgot-password')}>Minta tautan baru</Button>}
     {(sent || saved || unavailable) && error && <p className="notice auth-error" role="alert">{error}</p>}

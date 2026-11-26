@@ -1,5 +1,15 @@
 import assert from 'node:assert/strict';
 import { fixture, session, school, response, waitFor, tick } from './auth-fixture.mjs';
+for (const kind of ['packages', 'instructors', 'vehicles']) {
+  const empty = fixture({ initial: session(), url: `http://localhost/dashboard/${kind}`, storage: { 'atursetir-onboarding:school': { packages: false, instructors: false, vehicles: false, students: false, hasSessionEvidence: false, [kind]: true } }, fetch: async url => {
+    if (url === '/api/v1/schools') return response([school]);
+    if (url.includes('/instructors')) return response({ items: [], total: 0 });
+    return response([]);
+  } });
+  await waitFor(() => /Belum ada/.test(empty.document.querySelector('.instructor-panel')?.textContent || ''));
+  assert.equal(empty.document.querySelector('.onboarding-chain'), null, `${kind} must not claim active data exists when empty`);
+  empty.close();
+}
 let rejectVehicleDelete = true;
 let releaseVehicles;
 const vehicleCalls = [];
@@ -41,6 +51,7 @@ const writes = [];
 let failCalendar = false;
 let failEnrollment = false;
 let failSessionSave = false;
+let sessionExists = false;
 const enrollment = { id: 'enrollment', student_id: 'student', package_name: 'Paket lama', agreed_price: 600000, total_sessions: 6, remaining_sessions: 0, transmission: 'Matic', session_duration_minutes: 60, status: 'Aktif' };
 let purchased = false;
 const f = fixture({ initial: session(), url: 'http://localhost/dashboard/students', fetch: async (url, options) => {
@@ -50,6 +61,7 @@ const f = fixture({ initial: session(), url: 'http://localhost/dashboard/student
   if (url === '/api/v1/schools') return response([{ ...school, name: 'Sekolah Demo Jago Nyetir', role: 'owner' }]);
   if (u.pathname.endsWith('/sessions')) {
     if (u.searchParams.get('student_id')) return response({ items: [], total: 0 });
+    if (!sessionExists) return response({ items: [], total: 0 });
     assert.ok(u.searchParams.get('date_from'));
     const span = (Date.parse(u.searchParams.get('date_to')) - Date.parse(u.searchParams.get('date_from'))) / 86400000;
     assert.ok(span >= 0 && span <= 30, `expected valid session range span (0..30), got ${span}`);
@@ -107,7 +119,7 @@ assert.equal(chainButtons.some(b => b.textContent === 'Buka menu Jadwal'), false
 assert.ok(chainButtons.every(b => !b.classList.contains('btn-primary')), 'banner shortcuts stay secondary to the page CTA');
 await tick();
 button('Jadwal').click();
-await waitFor(() => f.document.querySelectorAll('.live-list article').length === 2);
+await waitFor(() => /Belum ada sesi pada rentang ini/.test(f.document.body.textContent));
 assert.equal(f.document.querySelector('form'), null);
 button('Jadwalkan sesi').click();
 await waitFor(() => f.document.querySelector('[role=dialog]'));
@@ -212,12 +224,15 @@ failSessionSave = true;
 form.dispatchEvent(new f.dom.window.Event('submit', { bubbles: true, cancelable: true }));
 await waitFor(() => form.querySelector('.modal-foot .form-feedback'));
 assert.doesNotMatch(form.querySelector('.form-feedback').textContent, /^Error:/);
+assert.equal(JSON.parse(f.dom.window.sessionStorage.getItem('atursetir-onboarding:school')).hasSessionEvidence, false, 'failed creation does not complete guidance');
 failSessionSave = false;
+sessionExists = true;
 form.dispatchEvent(new f.dom.window.Event('submit', { bubbles: true, cancelable: true }));
 await waitFor(() => writes.length === 2);
 assert.equal(writes[1][1].transmission, 'Matic');
 assert.equal(writes[1][1].end_time, '10:30');
 await tick();
+assert.equal(JSON.parse(f.dom.window.sessionStorage.getItem('atursetir-onboarding:school')).hasSessionEvidence, true, 'successful creation records session evidence');
 button('Ubah').click();
 await tick();
 await waitFor(() => f.document.querySelector('form')?.elements.enrollment_id?.value === 'enrollment');

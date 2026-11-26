@@ -55,7 +55,12 @@ assert.match(f.document.querySelector('.home-work section .panel-sub').textConte
 assert.equal(f.document.querySelector('.home-work .panel-head button'), null, 'Lihat jadwal CTA is removed from panel headers');
 assert.equal(f.document.querySelectorAll('.home-work section')[0].querySelectorAll('button.agenda-entry-link').length, 2);
 assert.equal(f.document.querySelectorAll('.home-work section')[1].querySelectorAll('button.agenda-entry-link').length, 1);
-assert.equal(f.document.querySelector('.onboarding-guide'), null, 'non-empty home hides onboarding guide');
+await waitFor(() => /Jadwal sudah tersedia/.test(f.document.querySelector('.onboarding-guide')?.textContent || ''));
+assert.equal(f.document.querySelector('.onboarding-guide .onboarding-steps'), null, 'existing sessions collapse preparation steps');
+assert.match(f.document.querySelector('.onboarding-guide').textContent, /Jadwal sudah tersedia/);
+const evidence = JSON.parse(f.dom.window.sessionStorage.getItem('atursetir-onboarding:school'));
+assert.equal(evidence.hasSessionEvidence, true);
+assert.equal(evidence.packages, null, 'sessions do not prove active packages exist');
 assert.ok(f.document.querySelectorAll('.home-metrics .metric')[1].classList.contains('hot'));
 assert.match(f.document.querySelector('.home-work').textContent, /30 hari terakhir/);
 assert.ok(f.document.querySelector('.home-work').textContent.includes(new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${today}T12:00:00Z`))));
@@ -76,6 +81,9 @@ assert.ok(empty.document.querySelector('.onboarding-guide'), 'empty home shows o
 assert.ok([...empty.document.querySelectorAll('.onboarding-guide button')].some(b => b.textContent === 'Buka menu Paket'));
 assert.ok(empty.document.querySelector('.onboarding-guide .step-status.unknown'), 'unchecked steps show Belum dicek badge');
 assert.match(empty.document.querySelector('.onboarding-guide').textContent, /Belum dicek/);
+assert.match(empty.document.querySelector('.onboarding-guide').textContent, /Persiapan penjadwalan/);
+assert.equal(empty.document.querySelectorAll('.onboarding-steps li').length, 4);
+assert.equal(empty.document.querySelectorAll('.onboarding-steps .btn-primary').length, 1);
 assert.ok(!empty.calls.some(([url]) => /\/(packages|instructors|vehicles|students)(\?|$)/.test(url)));
 empty.close();
 console.log('Home UI passed');
