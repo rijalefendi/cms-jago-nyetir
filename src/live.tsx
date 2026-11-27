@@ -81,14 +81,14 @@ function Home({ school, api, onSchedule, onNavigate, progress, markProgress }: {
     }).catch(() => { if (active) setError(true); }).finally(() => { if (active) setBusy(false); });
     return () => { active = false; };
   }, [api, school, revision]);
-  const list = (rows: Row[], empty: string) => rows.length ? <div className="live-agenda">{rows.map(row => {
+  const list = (rows: Row[], empty: string, timeline = false) => rows.length ? <div className={timeline ? "live-agenda timeline" : "live-agenda"}>{rows.map(row => {
     const validDate = Boolean(row.session_date && Number.isFinite(Date.parse(`${row.session_date}T12:00:00Z`)));
-    return <button type="button" className="agenda-entry agenda-entry-link" key={row.id} disabled={!validDate} onClick={() => onSchedule(row.session_date)} aria-label={`Lihat jadwal ${row.student_name || "murid"} ${formatDay(row.session_date)}`}><div className="agenda-time">{row.start_time?.slice(0, 5)}<small>{formatDay(row.session_date)}</small></div><div className="agenda-detail"><div className="agenda-primary"><strong>{row.student_name || 'Murid tidak tersedia'}</strong><Badge status={row.status} /></div><div className="agenda-meta">{row.start_time?.slice(0, 5)}–{row.end_time?.slice(0, 5)} WITA</div></div><span className="agenda-entry-arrow" aria-hidden="true"><Icon name="chevron-right" extra="sm" /></span></button>;
+    return <button type="button" className={"agenda-entry agenda-entry-link " + (row.status === "Selesai" ? "timeline-success" : row.status === "Terkonfirmasi" ? "timeline-info" : row.status === "Menunggu konfirmasi" ? "timeline-warning" : "")} key={row.id} disabled={!validDate} onClick={() => onSchedule(row.session_date)} aria-label={`Lihat jadwal ${row.student_name || "murid"} ${formatDay(row.session_date)}`}><div className="agenda-time">{row.start_time?.slice(0, 5)}–{row.end_time?.slice(0, 5)}<small>{formatDay(row.session_date)}</small></div><div className="agenda-detail"><div className="agenda-primary"><strong>{row.student_name || 'Murid tidak tersedia'}</strong><Badge status={row.status} /></div><div className="agenda-meta">WITA</div></div><span className="agenda-entry-arrow" aria-hidden="true"><Icon name="chevron-right" extra="sm" /></span></button>;
   })}</div> : <div className="home-empty"><Icon name="calendar" extra="lg" /><p>{empty}</p></div>;
   useEffect(() => {
     if (data && (data.today_count > 0 || data.overdue_count > 0 || data.today_sessions.length || data.overdue_sessions.length)) markProgress({ hasSessionEvidence: true });
   }, [data, markProgress]);
-  return <><HomeHeading busy={busy} onReload={() => setRevision(n => n + 1)} onSchedule={() => onSchedule()} />{busy ? <HomeMetricsSkeleton /> : error || !data ? <div role="alert" className="instructor-load-error">Gagal memuat beranda. <Button onClick={() => setRevision(n => n + 1)}>Coba lagi</Button></div> : <><div className="metrics home-metrics"><Metric label="Menunggu konfirmasi" value={data.pending_count} foot="Jadwal hari ini" icon="clock" tone="yellow" /><Metric label="Sesi lewat" value={data.overdue_count} foot="Belum diperbarui · 30 hari terakhir" icon="alert" tone={data.overdue_count ? 'hot' : ''} /></div><div className="layout-two home-work"><section className="panel"><div className="panel-head"><div><h2 className="panel-title">Agenda hari ini</h2><p className="panel-sub">{data.date} · WITA · {data.today_count} sesi</p></div></div>{list(data.today_sessions, 'Belum ada sesi hari ini.')}</section><section className="panel"><div className="panel-head"><div><h2 className="panel-title">Perlu ditindaklanjuti</h2><p className="panel-sub">Sesi lewat belum diperbarui · 30 hari terakhir ({moveDay(data.date, -30)}–{data.date})</p></div></div>{list(data.overdue_sessions, 'Tidak ada sesi lewat yang perlu diperbarui.')}</section></div><OnboardingGuide progress={progress} onNavigate={page => page === 'sessions' ? onSchedule() : onNavigate(page)} /></>}</>;
+  return <><HomeHeading busy={busy} onReload={() => setRevision(n => n + 1)} onSchedule={() => onSchedule()} />{busy ? <HomeMetricsSkeleton /> : error || !data ? <div role="alert" className="instructor-load-error">Gagal memuat beranda. <Button onClick={() => setRevision(n => n + 1)}>Coba lagi</Button></div> : <><div className="layout-two home-work"><section className="panel home-agenda"><div className="panel-head"><div><h2 className="panel-title">Agenda hari ini</h2><p className="panel-sub">{formatDay(data.date)} · WITA · {data.today_count} sesi</p></div></div><div className="metrics home-metrics"><Metric label="Menunggu konfirmasi" value={data.pending_count} foot="Jadwal hari ini" icon="clock" tone="yellow" /><Metric label="Sesi lewat" value={data.overdue_count} foot="Belum diperbarui · 30 hari terakhir" icon="alert" tone={data.overdue_count ? 'hot' : ''} /></div>{list(data.today_sessions, 'Belum ada sesi hari ini.', true)}</section><section className="panel"><div className="panel-head"><div><h2 className="panel-title">Perlu ditindaklanjuti</h2><p className="panel-sub">Sesi lewat belum diperbarui · 30 hari terakhir ({moveDay(data.date, -30)}–{data.date})</p></div></div>{list(data.overdue_sessions, 'Tidak ada sesi lewat yang perlu diperbarui.')}</section></div><OnboardingGuide progress={progress} onNavigate={page => page === 'sessions' ? onSchedule() : onNavigate(page)} /></>}</>;
 }
 
 export function LiveApp({ school: profile, api, initialPage, userEmail, onNavigate, loggingOut, onLogout, progress, markProgress }: {
@@ -270,9 +270,10 @@ export function LiveApp({ school: profile, api, initialPage, userEmail, onNaviga
       .finally(() => { if (active) setEnrollmentBusy(false); });
     return () => { active = false; };
   }, [api, school, page, studentId, enrollmentRevision]);
+  const saveLock = useRef(false);
   async function saveRecord(form: FormData) {
-    if (!school || busy || saving) return;
-    setSaving(true);
+    if (!school || busy || saving || saveLock.current) return;
+    saveLock.current = true; setSaving(true);
     try {
       const body: Row = Object.fromEntries(form.entries());
       if (editing && page === 'sessions' && body.status === 'Dibatalkan') {
@@ -337,6 +338,10 @@ export function LiveApp({ school: profile, api, initialPage, userEmail, onNaviga
       await refresh();
 
     } catch (e) {
+      if (page === 'sessions' && editing && e instanceof ApiError && (e.status === 0 || e.status >= 500)) {
+        setEditing(null); setEditorOpen(false); setEnrollmentRevision(n => n + 1);
+        await refresh(); setError('Hasil perubahan belum diketahui. Periksa jadwal yang dimuat ulang sebelum mengambil tindakan.'); return;
+      }
       if (page === 'sessions' && isLocked(e)) {
         setEditing(null); setEditorOpen(false); setSessionErrors({});
         setEnrollmentRevision(n => n + 1);
@@ -345,14 +350,15 @@ export function LiveApp({ school: profile, api, initialPage, userEmail, onNaviga
         return;
       }
       setError(writeErrorText(e));
-    } finally { setSaving(false); }
+    } finally { saveLock.current = false; setSaving(false); }
   }
   async function cancelSession(id: string) {
     if (busy) return;
     setBusy(true);
     try { await api(`/schools/${school}/sessions/${id}`, 'PATCH', { status: 'Dibatalkan' }); setEnrollmentRevision(n => n + 1); showToast('Sesi latihan dibatalkan.'); await refresh(); }
     catch (e) {
-      if (isLocked(e)) { setEnrollmentRevision(n => n + 1); await refresh(); setError(sessionLockMessage); }
+      if (e instanceof ApiError && (e.status === 0 || e.status >= 500)) { setEnrollmentRevision(n => n + 1); await refresh(); setError('Hasil pembatalan belum diketahui. Periksa jadwal yang dimuat ulang sebelum mengambil tindakan.'); }
+      else if (isLocked(e)) { setEnrollmentRevision(n => n + 1); await refresh(); setError(sessionLockMessage); }
       else setError(writeErrorText(e));
     } finally { setBusy(false); }
   }

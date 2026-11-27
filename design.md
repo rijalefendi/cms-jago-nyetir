@@ -61,7 +61,7 @@ Source Sans 3 is the UI font, with a system sans-serif fallback; Montserrat is r
 
 **Buttons and links.** Primary buttons are charcoal with white text, gently rounded corners (**10px**), and a minimum height of **42px**. Quiet buttons are white with a visible warm border. Soft buttons use selection yellow. Danger buttons use the red error treatment. Inline links are dark, compact, and underline on hover. Press feedback is a subtle 1px movement; keyboard focus remains visible.
 
-**Panels and metrics.** Work panels are white, flat, and softly rounded (**16px**) with a 1px warm divider and no default shadow. Metric panels use the same shape, with **20px** top padding in the desktop layout and a large figure below a small label. Use a two-column work area for agenda and action queue where space allows.
+**Panels and metrics.** Work panels are white, flat, and softly rounded (**16px**) with a 1px warm divider and no default shadow. The live Beranda places two compact metrics beneath the agenda heading and before its status-colored timeline. Use a two-column work area for agenda and action queue where space allows.
 
 **Tables, records, and scheduling.** Tables have quiet row separators, pale column headers, and generous enough row padding to scan names and status. On narrow screens, use compact record cards in place of the table. The desktop schedule has seven day columns with small bordered event cards; day and list views remain available. On mobile, show the agenda list rather than squeezing the seven-column calendar into the viewport.
 

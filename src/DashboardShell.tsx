@@ -77,20 +77,21 @@ export function DashboardShell({
   useEffect(() => {
     if (!open) return;
     const links = Array.from(
-      document.querySelectorAll<HTMLButtonElement>(
-        "#sidebar button:not(:disabled)",
+      document.querySelectorAll<HTMLElement>(
+        "#sidebar button:not(:disabled), #sidebar select:not(:disabled), #sidebar a[href]",
       ),
     );
-    links[0]?.focus();
+    const visible = links.filter(element => element.getClientRects().length > 0);
+    visible[0]?.focus();
     const escape = (event: KeyboardEvent) => {
       if (event.key === "Escape") close();
-      if (event.key === "Tab" && links.length) {
-        const first = links[0],
-          last = links[links.length - 1];
-        if (event.shiftKey && document.activeElement === first) {
+      if (event.key === "Tab" && visible.length) {
+        const first = visible[0],
+          last = visible[visible.length - 1];
+        if (event.shiftKey && (document.activeElement === first || !visible.includes(document.activeElement as HTMLElement))) {
           event.preventDefault();
           last.focus();
-        } else if (!event.shiftKey && document.activeElement === last) {
+        } else if (!event.shiftKey && (document.activeElement === last || !visible.includes(document.activeElement as HTMLElement))) {
           event.preventDefault();
           first.focus();
         }
@@ -158,7 +159,7 @@ export function DashboardShell({
             {(demo || !school || school.role === "owner") && <div className="nav-group">
               <div className="nav-title">LAINNYA</div>
               {demo && link("reports", "Laporan", "chart")}
-              {!demo && school?.role === "owner" && school.setup_complete && link("invitations", "Staff", "users")}
+              {!demo && school?.role === "owner" && school.setup_complete && link("invitations", "Staf", "users")}
               {link("settings", "Pengaturan", "settings")}
             </div>}
           </nav>
@@ -184,11 +185,12 @@ export function DashboardShell({
               >
                 <Icon name="menu" extra="lg" />
               </button>
+              <span className="topbar-school">{school && (demo || school.role !== "owner" || school.setup_complete) ? school.name : "Sekolah Anda"}</span>
             </div>
             <div className="topbar-right">
               {(!demo || onLogout) && <button
                 type="button"
-                className="btn btn-danger"
+                className="btn btn-quiet"
                 disabled={loggingOut}
                 onClick={onLogout}
               >

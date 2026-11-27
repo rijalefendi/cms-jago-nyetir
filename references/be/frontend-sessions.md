@@ -1,6 +1,6 @@
 # Handoff FE: siswa, pembelian paket, dan kalender
 
-Dicocokkan dengan kode backend pada 14 November 2026. Jika disalin ke repo FE, catat commit BE acuannya.
+Terakhir diperbarui pada 24 November 2026. Jika disalin ke repo FE, catat commit BE acuannya.
 Semua endpoint memerlukan `Authorization: Bearer <access_token>` dan membership sekolah dengan setup lengkap. Owner dan staff sama-sama boleh mengelola operasional.
 `school_id` berasal dari URL, bukan body. Zona waktu jadwal adalah `Asia/Makassar`; tanggal/jam merupakan waktu lokal sekolah, bukan UTC.
 
@@ -73,6 +73,10 @@ List selalu berupa objek pagination. Tanggal wajib untuk kalender; riwayat per s
 
 ## Detail
 
+Error database yang bukan pesan bisnis dikenal mengembalikan pesan generik `Database request failed`. Field `details` dan `hint` bernilai null; jangan menampilkan atau mengandalkan detail PostgreSQL.
+
+Pada POST enrollment, kirim header opsional `Idempotency-Key` berisi UUID. Simpan key yang sama untuk retry dengan siswa dan paket yang sama, dan buat UUID baru untuk setiap pembelian baru. Penggunaan key yang sama untuk input berbeda menghasilkan 409 `idempotency_key_conflict`. Key disimpan selama enrollment ada. Klien lama tanpa header belum terlindungi dari pembelian ganda saat retry.
+
 `GET /api/v1/schools/{school_id}/sessions/{session_id}` tidak membutuhkan rentang tanggal.
 Respons HTTP 200 berupa array satu objek; jika sesi tidak ditemukan pada sekolah tersebut, respons HTTP 404.
 
@@ -102,6 +106,7 @@ Body JSON lengkap untuk create dan update biasa:
 - Transmisi: `Matic` atau `Manual`, harus sama dengan snapshot enrollment dan mobil; instruktur harus kompatibel.
 - Selisih jam wajib tepat `session_duration_minutes` snapshot enrollment, termasuk detik. Gunakan snapshot pembelian, bukan katalog terbaru.
 - Status: `Menunggu konfirmasi`, `Terkonfirmasi`, `Selesai`, `Dibatalkan`, `Tidak hadir`.
+- POST sesi menerima header opsional `Idempotency-Key` UUID. Simpan key dan input awal yang sama untuk retry, bahkan jika sesi kemudian diubah atau dibatalkan; backend mengembalikan UUID awal. Buat key baru untuk sesi baru. Key yang sama dengan input berbeda menghasilkan 409 `idempotency_key_conflict`. Key bertahan selama sesi ada; POST tanpa key tidak terlindungi.
 - Update hanya boleh jika status tersimpan masih `Menunggu konfirmasi` atau `Terkonfirmasi`.
   Setelah `Selesai`, `Dibatalkan`, atau `Tidak hadir`, seluruh data sesi terkunci
   bagi owner maupun staff, termasuk request dengan data/status yang sama.
@@ -122,7 +127,7 @@ Pembatalan tidak memvalidasi ulang jam/transmisi historis tetapi tetap membutuhk
 Pembatalan juga hanya boleh dari status tersimpan Menunggu konfirmasi/Terkonfirmasi.
 
 Respons sukses create/update/pembatalan: HTTP 200, JSON string UUID sesi, bukan objek sesi.
-Setelah sukses, muat ulang kalender pada rentang aktif. Jangan otomatis mengulang request tulis jika koneksi putus.
+Setelah sukses, muat ulang kalender pada rentang aktif. Retry otomatis POST hanya aman jika memakai key dan input awal yang sama. Key ini tidak melindungi PATCH; setelah koneksi putus, muat ulang sesi sebelum mengambil tindakan.
 
 ## Validasi dan error
 
@@ -202,11 +207,10 @@ PATCH enrollment, termasuk pengubahan status, ditolak langsung oleh API dengan H
 
 Referensi payload lengkap: `internal/httpapi/docs/openapi.json` (`/openapi.json`, UI `/docs`). Dokumen ini menjelaskan flow; SQL tetap dikelola repo BE.
 
-Penguncian seluruh update disediakan oleh `db/migrations/20261120_lock_session_updates.sql`
-untuk database lama. Kode dan migrasi tersedia; penerapan ke development/production
-belum diverifikasi pada handover ini. Migrasi dikerjakan dari repo BE, bukan FE;
-startup/ensure tidak menerapkannya otomatis. Pastikan backend/database target sudah
-diperbarui sebelum menyatakan penguncian server terverifikasi.
+Penguncian seluruh update tersedia pada schema terbaru. Database yang sudah ada
+perlu diperiksa dan diperbarui secara eksplisit oleh pengelola BE; startup tidak
+memperbarui schema otomatis. Pastikan database target sudah diperbarui sebelum
+menyatakan penguncian server terverifikasi.
 
 ## Progres lengkap dan riwayat per siswa (14 November 2026)
 

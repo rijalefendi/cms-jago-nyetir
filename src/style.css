@@ -672,3 +672,34 @@
 .readiness-list{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .readiness-list li{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .student-detail .instructor-empty .student-detail-actions{justify-content:center;margin-top:10px}
+
+.topbar-school{font-weight:700;overflow-wrap:anywhere}
+.topbar-left{gap:12px;min-width:0}
+.home-agenda .panel-head{background:var(--surface-warm);border-bottom:1px solid var(--app-divider)}
+.home-agenda .home-metrics{gap:0;margin:0;padding:12px 16px;border-bottom:1px solid var(--app-divider)}
+.home-agenda .metric{border:0;border-radius:0;padding:4px 12px;background:transparent}
+.home-agenda .metric + .metric{border-left:1px solid var(--app-divider)}
+.home-agenda .metric-top{margin-bottom:4px}
+.home-agenda .metric-value{font-size:24px;margin-bottom:2px}
+.home-agenda .metric-foot,.home-agenda .metric-label{font-size:12px}
+.home-agenda .live-agenda.timeline{position:relative;padding-left:24px}
+.home-agenda .timeline::before{content:"";position:absolute;left:21px;top:28px;bottom:28px;width:1px;background:var(--app-divider)}
+.home-agenda .timeline .agenda-entry-link::before{content:"";position:absolute;left:-7px;top:50%;width:9px;height:9px;border-radius:50%;background:var(--text-muted)}
+.home-agenda .timeline .timeline-success::before{background:var(--status-success)}
+.home-agenda .timeline .timeline-info::before{background:var(--status-info)}
+.home-agenda .timeline .timeline-warning::before{background:var(--status-warning)}
+.event-card.confirmed{border-left-color:var(--status-info)}
+.event-card.complete{border-left-color:var(--status-success)}
+.agenda-rule.confirmed{background:var(--status-info)}
+.agenda-rule.complete{background:var(--status-success)}
+.legend-dot.confirmed{background:var(--status-info)}
+.legend-dot.complete{background:var(--status-success)}
+@media(max-width:850px){.mobile-menu-btn{min-width:44px;min-height:44px}.mobile-tab{font-size:12px}}
+@media(max-width:690px){.badge,.live-agenda .agenda-time small{font-size:12px}.home-agenda .home-metrics{padding:10px 4px}.home-work .live-agenda.timeline{padding-left:24px}}
+
+@media(max-width:690px){
+  .home-work .agenda-entry-link{align-items:flex-start}
+  .home-work .agenda-primary{align-items:flex-start}
+  .home-work .agenda-primary .badge{white-space:normal}
+  .home-work .agenda-entry-arrow{flex:none}
+}

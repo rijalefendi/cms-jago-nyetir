@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AturSetir · Pindah jadwal latihan</title>
+  <script src="assets/gsap.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { margin: 0; color: #212121; background: #f7f6f3; font-family: system-ui, sans-serif; }
+    #atursetir-pindah-jadwal { position: relative; width: 100%; height: 100%; overflow: hidden; background: #f7f6f3; }
+  </style>
+</head>
+<body>
+  <main id="atursetir-pindah-jadwal" data-composition-id="atursetir-pindah-jadwal" data-start="0" data-duration="14" data-width="1920" data-height="1080" data-fps="30">
+    <div id="schedule-feature" class="clip" data-composition-id="schedule-feature" data-composition-src="compositions/schedule.html" data-start="0" data-duration="14" data-track-index="0" data-track-kind="graphics" data-width="1920" data-height="1080"></div>
+  </main>
+  <script>
+    window.__timelines ??= {};
+    window.__timelines['atursetir-pindah-jadwal'] = gsap.timeline({ paused: true });
+  </script>
+</body>
+</html>
